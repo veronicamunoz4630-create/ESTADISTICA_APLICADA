@@ -1,0 +1,479 @@
+---
+title: "Distribuciones Bernoulli y Binomial: Solución de Ejercicios Propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| include: false
+library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+
+# Tema de las gráficas (el mismo de las notas de clase)
+tema_clase <- theme_minimal() +
+  theme(
+    legend.title = element_text(size=13, face="bold"),
+    legend.text = element_text(size=13),
+    plot.title = element_text(size=15, face="bold", hjust = 0.5),
+    plot.subtitle = element_text(size=13, hjust = 0.5),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=12),
+    axis.title.x = element_text(face="bold", size=13),
+    axis.title.y = element_text(face="bold", size=13)
+  )
+```
+
+## Ejercicios Propuestos
+
+::: {#exr-binomial-medicamento}
+Un medicamento tiene efectividad del 85%. Se administra a 20 pacientes.
+
+a) Brindar la gráfica de la función de probabilidad considerando $X\sim \text{Binomial}(20, 0.85)$.
+
+b) Proporcionar la esperanza, varianza y desviación estándar.
+
+c) Realiza una simulación con 1000 experimentos y compara los resultados con los valores teóricos.
+
+:::
+
+**Solución**
+
+Sea $X$ el número de pacientes que responden al medicamento, $X \sim \text{Binomial}(n = 20, p = 0.85)$.
+
+**a) Función de probabilidad**
+
+$$f(x) = \binom{20}{x} (0.85)^x (0.15)^{20-x}, \quad x = 0, 1, \ldots, 20$$
+
+```{r}
+#| label: ejercicio-medicamento-pmf
+#| code-fold: true
+#| fig-align: center
+
+# Parámetros
+n_med <- 20
+p_med <- 0.85
+
+# Probabilidades
+k_med <- 0:n_med
+prob_med <- dbinom(k_med, n_med, p_med)
+
+med_data <- data.frame(
+  k = k_med,
+  Probabilidad = prob_med
+)
+
+# Parámetros estadísticos (se usan también en la gráfica)
+media_med <- n_med * p_med
+
+ggplot(med_data, aes(x = k, y = Probabilidad)) +
+  geom_col(fill = "steelblue", alpha = 0.7, width = 0.8) +
+  geom_text(data = med_data[med_data$Probabilidad > 0.005, ],
+            aes(label = round(Probabilidad, 3)), vjust = -0.5, size = 3) +
+  geom_vline(xintercept = media_med, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = media_med - 2.5, y = max(prob_med) * 0.8,
+           label = paste("Media =", media_med), color = "red") +
+  scale_x_continuous(breaks = k_med) +
+  labs(title = paste("Distribución Binomial(", n_med, ",", p_med, ")"),
+       subtitle = "Número de pacientes en los que el medicamento es efectivo",
+       x = "Número de Éxitos",
+       y = "Probabilidad") +
+  tema_clase
+```
+
+**b) Esperanza, varianza y desviación estándar**
+
+$$E(X) = np = 20(0.85) = 17 \qquad \text{Var}(X) = np(1-p) = 20(0.85)(0.15) = 2.55 \qquad \sigma = \sqrt{2.55}$$
+
+```{r}
+#| label: ejercicio-medicamento-parametros
+#| code-fold: true
+
+media_teo_med <- n_med * p_med
+var_teo_med <- n_med * p_med * (1 - p_med)
+desv_teo_med <- sqrt(var_teo_med)
+
+cat("Parámetros estadísticos teóricos:\n")
+cat("Esperanza:", media_teo_med, "\n")
+cat("Varianza:", var_teo_med, "\n")
+cat("Desviación estándar:", round(desv_teo_med, 4), "\n")
+```
+
+**c) Simulación con 1000 experimentos**
+
+```{r}
+#| label: ejercicio-medicamento-simulacion
+#| code-fold: true
+
+n_sim_med <- 1000
+
+# Generar datos
+set.seed(2026)
+datos_med <- rbinom(n_sim_med, n_med, p_med)
+
+# Estadísticas observadas
+media_obs_med <- mean(datos_med)
+var_obs_med <- var(datos_med)
+desv_obs_med <- sd(datos_med)
+
+# Tabla comparativa de parámetros
+comparacion_med <- data.frame(
+  Estadística = c("Esperanza", "Varianza", "Desv. Estándar"),
+  Teórico = c(media_teo_med, var_teo_med, desv_teo_med),
+  Observado = c(media_obs_med, var_obs_med, desv_obs_med)
+)
+comparacion_med$`Error %` <- abs(comparacion_med$Observado - comparacion_med$Teórico) /
+  comparacion_med$Teórico * 100
+
+kable(comparacion_med,
+      caption = "Comparación de parámetros: valores teóricos vs simulación (1000 experimentos)",
+      digits = 4) %>%
+  kable_styling(bootstrap_options = "striped")
+
+# Comparar distribuciones (se fuerzan todos los valores de 0 a n)
+freq_obs_med <- table(factor(datos_med, levels = 0:n_med)) / n_sim_med
+
+dist_med <- data.frame(
+  k = 0:n_med,
+  Freq_Observada = as.numeric(freq_obs_med),
+  Prob_Teorica = dbinom(0:n_med, n_med, p_med)
+)
+
+# Mostrar solo valores con probabilidad relevante
+kable(dist_med[dist_med$Prob_Teorica > 0.001, ],
+      caption = "Frecuencias observadas vs probabilidades teóricas",
+      digits = 4,
+      col.names = c("k", "Freq. Observada", "Prob. Teórica"),
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = "striped")
+```
+
+**Visualización comparativa**
+
+```{r}
+#| label: ejercicio-medicamento-grafico
+#| code-fold: true
+#| fig-align: center
+
+dist_med_largo <- dist_med %>%
+  pivot_longer(cols = c(Freq_Observada, Prob_Teorica),
+               names_to = "Tipo",
+               values_to = "Probabilidad") %>%
+  mutate(Tipo = case_when(
+    Tipo == "Freq_Observada" ~ "Simulada",
+    Tipo == "Prob_Teorica" ~ "Teórica"
+  ))
+
+ggplot(dist_med_largo, aes(x = k, y = Probabilidad, fill = Tipo)) +
+  geom_col(position = "dodge", alpha = 0.7) +
+  scale_fill_manual(values = c("Teórica" = "blue", "Simulada" = "red")) +
+  scale_x_continuous(breaks = 0:n_med) +
+  labs(title = paste("Comparación: Binomial(", n_med, ",", p_med, ") - ", n_sim_med, "simulaciones"),
+       x = "Número de Éxitos",
+       y = "Probabilidad/Frecuencia",
+       fill = "Distribución") +
+  tema_clase
+```
+
+Los valores simulados se parecen mucho a los teóricos: la esperanza ronda 17 pacientes curados de 20 y la distribución es asimétrica hacia la izquierda, porque $p$ es alto y casi todo el peso se concentra cerca de $n$.
+
+---
+
+::: {#exr-simulacion_teorema}
+Verificar el siguiente teorema mediante simulación.
+
+Sean $X$ y $Y$ dos variables aleatorias independientes con distribución $bin(n, p)$, y $bin(m, p)$, respectivamente. Entonces la variable $X+Y$ tiene distribución $bin(n+m, p)$.
+:::
+
+**Solución**
+
+Se toman, por ejemplo, $n = 8$, $m = 12$ y $p = 0.35$. Se simulan $X \sim bin(8, 0.35)$ y $Y \sim bin(12, 0.35)$ de forma **independiente**, se calcula $Z = X + Y$ y se compara con la distribución teórica $bin(20, 0.35)$.
+
+```{r}
+#| label: ejercicio-teorema-simulacion
+#| code-fold: true
+
+# Parámetros
+n_x <- 8
+m_y <- 12
+p_suma <- 0.35
+n_sim_suma <- 10000
+
+# Simulación de X y Y independientes
+set.seed(123)
+X <- rbinom(n_sim_suma, n_x, p_suma)
+Y <- rbinom(n_sim_suma, m_y, p_suma)
+Z <- X + Y
+
+# Valores teóricos de Binomial(n + m, p)
+media_teo_suma <- (n_x + m_y) * p_suma
+var_teo_suma <- (n_x + m_y) * p_suma * (1 - p_suma)
+
+cat("Distribución teórica de X + Y: Binomial(", n_x + m_y, ",", p_suma, ")\n")
+cat("Media teórica:", media_teo_suma, "| Media observada:", round(mean(Z), 4), "\n")
+cat("Varianza teórica:", var_teo_suma, "| Varianza observada:", round(var(Z), 4), "\n")
+```
+
+**Comparación de la distribución**
+
+```{r}
+#| label: ejercicio-teorema-tabla
+#| code-fold: true
+
+k_suma <- 0:(n_x + m_y)
+
+freq_obs_suma <- table(factor(Z, levels = k_suma)) / n_sim_suma
+
+comparacion_suma <- data.frame(
+  k = k_suma,
+  Freq_Observada = as.numeric(freq_obs_suma),
+  Prob_Teorica = dbinom(k_suma, n_x + m_y, p_suma)
+)
+
+kable(comparacion_suma[comparacion_suma$Prob_Teorica > 0.001, ],
+      caption = "Frecuencias de X + Y vs probabilidades de la Binomial(20, 0.35)",
+      digits = 4,
+      col.names = c("k", "Freq. Observada", "Prob. Teórica"),
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = "striped")
+
+cat("Máxima diferencia absoluta entre frecuencia y probabilidad:",
+    round(max(abs(comparacion_suma$Freq_Observada - comparacion_suma$Prob_Teorica)), 4), "\n")
+
+# Prueba de bondad de ajuste chi-cuadrado (con p-valor simulado)
+prueba_suma <- chisq.test(x = as.numeric(table(factor(Z, levels = k_suma))),
+                          p = comparacion_suma$Prob_Teorica,
+                          rescale.p = TRUE,
+                          simulate.p.value = TRUE, B = 5000)
+cat("Prueba chi-cuadrado de bondad de ajuste, p-valor:", round(prueba_suma$p.value, 4), "\n")
+```
+
+Si el p-valor es grande (por ejemplo, mayor que 0.05), no hay evidencia para rechazar que $X + Y$ sigue una $bin(20, 0.35)$, lo cual concuerda con el teorema.
+
+```{r}
+#| label: ejercicio-teorema-grafico
+#| code-fold: true
+#| fig-align: center
+
+comp_suma_larga <- comparacion_suma %>%
+  pivot_longer(cols = c(Freq_Observada, Prob_Teorica),
+               names_to = "Tipo",
+               values_to = "Probabilidad") %>%
+  mutate(Tipo = case_when(
+    Tipo == "Freq_Observada" ~ "Simulada (X + Y)",
+    Tipo == "Prob_Teorica" ~ "Teórica Bin(20, 0.35)"
+  ))
+
+ggplot(comp_suma_larga, aes(x = k, y = Probabilidad, fill = Tipo)) +
+  geom_col(position = "dodge", alpha = 0.7) +
+  scale_fill_manual(values = c("Teórica Bin(20, 0.35)" = "blue", "Simulada (X + Y)" = "red")) +
+  scale_x_continuous(breaks = k_suma) +
+  labs(title = "Verificación: X + Y ~ Binomial(n + m, p)",
+       subtitle = paste("X ~ Bin(", n_x, ",", p_suma, "), Y ~ Bin(", m_y, ",", p_suma, "), ",
+                        n_sim_suma, "simulaciones"),
+       x = "Valor de X + Y",
+       y = "Probabilidad/Frecuencia",
+       fill = "Distribución") +
+  tema_clase
+```
+
+---
+
+::: {#exr-aproximacion_normal}
+
+Considerando una distribución binomial con parámetros $n=100$ y $p=0.3$, verifica si se cumplen las condiciones para la aproximación normal. Realiza la comparación entre la distribución binomial y su aproximación normal.
+
+:::
+
+**Solución**
+
+**Verificación de las condiciones**
+
+```{r}
+#| label: ejercicio-aprox-condiciones
+#| code-fold: true
+
+n_ap <- 100
+p_ap <- 0.3
+
+condicion1_ap <- n_ap * p_ap >= 5
+condicion2_ap <- n_ap * (1 - p_ap) >= 5
+
+cat("Condiciones para aproximación normal:\n")
+cat("np =", n_ap * p_ap, "≥ 5:", condicion1_ap, "\n")
+cat("n(1-p) =", n_ap * (1 - p_ap), "≥ 5:", condicion2_ap, "\n")
+
+media_ap <- n_ap * p_ap
+var_ap <- n_ap * p_ap * (1 - p_ap)
+sd_ap <- sqrt(var_ap)
+
+cat("\nAproximación: Binomial(100, 0.3) ≈ Normal(", media_ap, ",", var_ap, ")\n")
+```
+
+Como ambas condiciones se cumplen, la aproximación normal es adecuada.
+
+**Comparación de las probabilidades**
+
+Para comparar una distribución discreta con una continua se usa la **corrección de continuidad**: $P(X = k) \approx \Phi\left(\frac{k + 0.5 - \mu}{\sigma}\right) - \Phi\left(\frac{k - 0.5 - \mu}{\sigma}\right)$.
+
+```{r}
+#| label: ejercicio-aprox-comparacion
+#| code-fold: true
+
+# Probabilidades puntuales: exactas vs aproximadas (con corrección de continuidad)
+k_ap <- 0:n_ap
+prob_exacta_ap <- dbinom(k_ap, n_ap, p_ap)
+prob_aprox_ap <- pnorm(k_ap + 0.5, media_ap, sd_ap) - pnorm(k_ap - 0.5, media_ap, sd_ap)
+
+# Tabla de probabilidades de interés
+tabla_ap <- data.frame(
+  Probabilidad = c("P(X = 30)", "P(X ≤ 25)", "P(X ≥ 35)", "P(25 ≤ X ≤ 35)"),
+  Exacta = c(dbinom(30, n_ap, p_ap),
+             pbinom(25, n_ap, p_ap),
+             1 - pbinom(34, n_ap, p_ap),
+             pbinom(35, n_ap, p_ap) - pbinom(24, n_ap, p_ap)),
+  `Aprox. normal` = c(pnorm(30.5, media_ap, sd_ap) - pnorm(29.5, media_ap, sd_ap),
+                      pnorm(25.5, media_ap, sd_ap),
+                      1 - pnorm(34.5, media_ap, sd_ap),
+                      pnorm(35.5, media_ap, sd_ap) - pnorm(24.5, media_ap, sd_ap)),
+  check.names = FALSE
+)
+tabla_ap$`Error absoluto` <- abs(tabla_ap$Exacta - tabla_ap$`Aprox. normal`)
+
+kable(tabla_ap,
+      caption = "Probabilidades exactas vs aproximación normal con corrección de continuidad",
+      digits = 4) %>%
+  kable_styling(bootstrap_options = "striped")
+
+cat("Máximo error absoluto en las probabilidades puntuales:",
+    round(max(abs(prob_exacta_ap - prob_aprox_ap)), 5), "\n")
+```
+
+**Visualización**
+
+```{r}
+#| label: ejercicio-aprox-grafico
+#| code-fold: true
+#| fig-align: center
+
+aprox_data_ap <- data.frame(k = k_ap, Binomial = prob_exacta_ap)
+aprox_data_ap <- aprox_data_ap[aprox_data_ap$Binomial > 0.0005, ]
+
+ggplot(aprox_data_ap, aes(x = k, y = Binomial)) +
+  geom_col(fill = "lightblue", color = "black", alpha = 0.7, width = 0.9) +
+  stat_function(fun = dnorm, args = list(mean = media_ap, sd = sd_ap),
+                color = "red", linewidth = 1.5) +
+  geom_vline(xintercept = media_ap, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Aproximación Normal a la Binomial",
+       subtitle = paste("Binomial(", n_ap, ",", p_ap, ") vs Normal(", media_ap, ",", var_ap, ")"),
+       x = "k",
+       y = "Probabilidad / Densidad",
+       caption = "Barras: probabilidades binomiales | Curva roja: densidad normal") +
+  tema_clase
+```
+
+La curva normal se ajusta muy bien a las barras de la binomial, y los errores absolutos en las probabilidades son del orden de milésimas.
+
+---
+
+::: {#exr-tcl_binomial}
+
+Generar $k=1000$ muestras de tamaño 30 de una distribución binomial con parámetros $n=10$ y $p=0.7$. Verificar el Teorema Central del Límite para las medias muestrales.
+
+:::
+
+**Solución**
+
+En este caso la esperanza es $\mu = np = 10 \times 0.7 = 7$ y la varianza es $\sigma^2 = np(1-p) = 10 \times 0.7 \times 0.3 = 2.1$. Luego, la media muestral
+
+\begin{equation}
+\bar{X}_{30} = \frac{1}{30} \sum_{i=1}^{30} X_i
+\end{equation}
+
+tendrá aproximadamente la siguiente distribución:
+
+\begin{equation}
+\bar{X}_{30} \sim N\left(7, \frac{2.1}{30}\right)
+\end{equation}
+
+```{r}
+#| label: ejercicio-tcl-binomial
+#| code-fold: true
+#| fig-width: 8
+#| fig-height: 6
+#| fig-align: "center"
+
+# Parámetros
+k_tcl <- 1000
+n_muestra_tcl <- 30
+n_bin_tcl <- 10
+p_bin_tcl <- 0.7
+
+mu_tcl <- n_bin_tcl * p_bin_tcl
+var_tcl <- n_bin_tcl * p_bin_tcl * (1 - p_bin_tcl)
+var_media_tcl <- var_tcl / n_muestra_tcl
+
+# Simular medias muestrales
+set.seed(321)
+medias_tcl <- replicate(k_tcl, {
+  muestra <- rbinom(n_muestra_tcl, n_bin_tcl, p_bin_tcl)
+  mean(muestra)
+})
+
+# Histograma
+hist_tcl <- data.frame(Medias = medias_tcl)
+
+ggplot(hist_tcl) +
+  geom_histogram(aes(x = Medias, after_stat(density)), bins = 30,
+                 fill = "lightblue", alpha = 0.7, color = "black") +
+  geom_density(aes(x = Medias), color = "red", linewidth = 1) +
+  geom_function(fun = dnorm, args = list(mean = mu_tcl, sd = sqrt(var_media_tcl)),
+                color = "darkgreen", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = mean(medias_tcl),
+             color = "blue", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribución de Medias Muestrales",
+       subtitle = paste("N =", n_muestra_tcl, " de una v.a. binomial(10, 0.7)"),
+       x = "Media Muestral",
+       y = "Densidad",
+       caption = "Roja: densidad estimada | Verde: normal teórica | Azul: media observada") +
+  tema_clase
+
+# Estadísticas
+cat("Media teórica:", mu_tcl, "\n")
+cat("Media observada:", round(mean(medias_tcl), 4), "\n")
+cat("Varianza teórica de la media:", round(var_media_tcl, 4), "\n")
+cat("Varianza observada de la media:", round(var(medias_tcl), 4), "\n")
+```
+
+**Gráfico cuantil-cuantil (QQ-plot)**
+
+```{r}
+#| label: ejercicio-tcl-binomial-qq
+#| code-fold: true
+#| fig-align: center
+
+ggplot(hist_tcl, aes(sample = Medias)) +
+  stat_qq(color = "steelblue", alpha = 0.7) +
+  stat_qq_line(color = "red", linewidth = 1) +
+  labs(title = "QQ-plot de las Medias Muestrales",
+       subtitle = "Comparación con la distribución normal",
+       x = "Cuantiles teóricos",
+       y = "Cuantiles muestrales") +
+  tema_clase
+
+# Prueba de normalidad
+cat("Prueba de Shapiro-Wilk, p-valor:", round(shapiro.test(medias_tcl)$p.value, 4), "\n")
+```
+
+El histograma de las medias muestrales sigue la curva normal con media 7 y varianza $2.1/30 = 0.07$. En el QQ-plot los puntos quedan casi sobre la recta, así que se verifica el Teorema Central del Límite aunque la variable original (binomial) sea discreta y asimétrica.
+
+---
+
+<br>

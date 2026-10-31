@@ -1,0 +1,321 @@
+---
+title: "Distribución Geométrica: Solución de Ejercicios Propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+library(tidyr)
+
+# Tema de las gráficas (el mismo de las notas de clase)
+tema_clase <- theme_minimal() +
+  theme(
+    legend.title = element_text(size=13, face="bold"),
+    legend.text = element_text(size=13),
+    plot.title = element_text(size=15, face="bold", hjust = 0.5),
+    plot.subtitle = element_text(size=13, hjust = 0.5),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=12),
+    axis.title.x = element_text(face="bold", size=13),
+    axis.title.y = element_text(face="bold", size=13)
+  )
+```
+
+## Ejercicios Propuestos
+
+::: {#exr-geom_1}
+Una máquina tiene probabilidad 0.02 de producir una pieza defectuosa.
+
+a) Brindar las gráficas de la función de probabilidad y la función de distribución (probabilidad acumulada)
+
+b)  Calcula los valores de la esperanza, varianza y desviación estándar.
+
+c) Genera una simulación de 10,000 ensayos y compara los resultados con los valores teóricos.
+
+d)  Verifica la propiedad de falta de memoria para este problema.
+:::
+
+**Solución**
+
+Sea $X$ el número de piezas que se inspeccionan antes de encontrar la primera defectuosa, $X \sim \text{geo}(0.02)$, con función de probabilidad $f(x) = 0.02(0.98)^x$ para $x = 0, 1, 2, \ldots$
+
+**a) Función de probabilidad y función de distribución**
+
+```{r}
+#| label: ejercicio-geom1-pmf
+#| code-fold: true
+#| fig-align: center
+
+# Parámetro
+p_g <- 0.02
+
+# Media (se usa en las gráficas)
+media_g <- (1 - p_g) / p_g
+
+# Valores a graficar (la probabilidad de pasar de 250 es menor a 0.7%)
+k_g <- 0:250
+geom_data <- data.frame(
+  k = k_g,
+  Probabilidad = dgeom(k_g, p_g),
+  Prob_Acumulada = pgeom(k_g, p_g)
+)
+
+ggplot(geom_data, aes(x = k, y = Probabilidad)) +
+  geom_col(fill = "steelblue", alpha = 0.7, width = 0.8) +
+  geom_vline(xintercept = media_g, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = media_g + 35, y = max(geom_data$Probabilidad) * 0.8,
+           label = paste("E(X) =", media_g), color = "red") +
+  labs(title = paste("Función de Probabilidad Geométrica( p =", p_g, ")"),
+       subtitle = "Número de piezas inspeccionadas antes de la primera defectuosa",
+       x = "Número de Ensayos",
+       y = "Probabilidad") +
+  tema_clase
+```
+
+```{r}
+#| label: ejercicio-geom1-cdf
+#| code-fold: true
+#| fig-align: center
+
+ggplot(geom_data, aes(x = k, y = Prob_Acumulada)) +
+  geom_step(color = "darkgreen", linewidth = 1.2) +
+  geom_hline(yintercept = c(0.5, 1), linetype = "dashed", alpha = 0.5) +
+  geom_vline(xintercept = media_g, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = paste("Función de Distribución Geométrica( p =", p_g, ")"),
+       subtitle = "F(x) = P(X ≤ x)",
+       x = "Número de Ensayos",
+       y = "Probabilidad Acumulada") +
+  ylim(0, 1) +
+  tema_clase
+```
+
+**b) Esperanza, varianza y desviación estándar**
+
+$$E(X) = \frac{1-p}{p} = \frac{0.98}{0.02} = 49 \qquad \text{Var}(X) = \frac{1-p}{p^2} = \frac{0.98}{0.0004} = 2450 \qquad \sigma = \frac{\sqrt{1-p}}{p}$$
+
+```{r}
+#| label: ejercicio-geom1-parametros
+#| code-fold: true
+
+media_teo_g <- (1 - p_g) / p_g
+var_teo_g <- (1 - p_g) / (p_g^2)
+desv_teo_g <- sqrt(var_teo_g)
+
+cat("Esperanza (piezas esperadas antes de la primera defectuosa):", media_teo_g, "\n")
+cat("Varianza:", var_teo_g, "\n")
+cat("Desviación estándar:", round(desv_teo_g, 4), "\n")
+```
+
+**c) Simulación de 10,000 ensayos**
+
+```{r}
+#| label: ejercicio-geom1-simulacion
+#| code-fold: true
+
+n_sim_g <- 10000
+
+# Generar datos geométricos
+set.seed(2026)
+datos_g <- rgeom(n_sim_g, p_g)
+
+# Estadísticas observadas
+media_obs_g <- mean(datos_g)
+var_obs_g <- var(datos_g)
+desv_obs_g <- sd(datos_g)
+
+comparacion_g <- data.frame(
+  Estadística = c("Esperanza", "Varianza", "Desv. Estándar"),
+  Teórico = c(media_teo_g, var_teo_g, desv_teo_g),
+  Observado = c(media_obs_g, var_obs_g, desv_obs_g)
+)
+comparacion_g$`Error %` <- abs(comparacion_g$Observado - comparacion_g$Teórico) /
+  comparacion_g$Teórico * 100
+
+kable(comparacion_g,
+      caption = "Comparación de parámetros: valores teóricos vs simulación (10,000 ensayos)",
+      digits = 4) %>%
+  kable_styling(bootstrap_options = "striped")
+
+# Comparación de probabilidades acumuladas
+ks_g <- c(10, 25, 50, 100, 150)
+comp_acum_g <- data.frame(
+  k = ks_g,
+  Prob_Teorica = pgeom(ks_g, p_g),
+  Freq_Observada = sapply(ks_g, function(k) mean(datos_g <= k))
+)
+comp_acum_g$Diferencia <- abs(comp_acum_g$Prob_Teorica - comp_acum_g$Freq_Observada)
+
+kable(comp_acum_g,
+      caption = "Comparación de probabilidades acumuladas P(X ≤ k)",
+      digits = 4,
+      col.names = c("k", "P(X ≤ k) Teórica", "Freq. Observada", "Diferencia")) %>%
+  kable_styling(bootstrap_options = "striped")
+```
+
+**Visualización de la comparación**
+
+```{r}
+#| label: ejercicio-geom1-grafico-sim
+#| code-fold: true
+#| fig-align: center
+
+# Como los valores se dispersan mucho, se agrupa el histograma en intervalos de 10
+ggplot(data.frame(x = datos_g), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 10, boundary = 0,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  geom_line(data = geom_data, aes(x = k, y = Probabilidad),
+            color = "red", linewidth = 1.5) +
+  geom_vline(xintercept = media_teo_g, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = paste("Comparación: Geométrica(", p_g, ") - ", n_sim_g, "simulaciones"),
+       x = "Número de Ensayos",
+       y = "Densidad",
+       caption = "Curva roja: probabilidad teórica | Línea roja punteada: E(X)") +
+  tema_clase
+```
+
+**d) Propiedad de falta de memoria**
+
+Se verifica que $P(X \geq s + t \mid X \geq s) = P(X \geq t)$. Se toman $s = 30$ y $t = 20$.
+
+```{r}
+#| label: ejercicio-geom1-memoria
+#| code-fold: true
+
+s_g <- 30
+t_g <- 20
+
+# P(X >= s + t), P(X >= s), P(X >= t)
+prob_s_t_g <- 1 - pgeom(s_g + t_g - 1, p_g)
+prob_s_g <- 1 - pgeom(s_g - 1, p_g)
+prob_t_g <- 1 - pgeom(t_g - 1, p_g)
+
+# P(X >= s + t | X >= s) = P(X >= s + t) / P(X >= s)
+prob_condicional_g <- prob_s_t_g / prob_s_g
+
+cat("Verificación teórica de la Propiedad de Falta de Memoria:\n")
+cat("Parámetros: p =", p_g, ", s =", s_g, ", t =", t_g, "\n\n")
+cat("P(X ≥", s_g + t_g, ") =", round(prob_s_t_g, 6), "\n")
+cat("P(X ≥", s_g, ") =", round(prob_s_g, 6), "\n")
+cat("P(X ≥", t_g, ") =", round(prob_t_g, 6), "\n\n")
+cat("P(X ≥", s_g + t_g, "| X ≥", s_g, ") =", round(prob_condicional_g, 6), "\n")
+cat("P(X ≥", t_g, ") =", round(prob_t_g, 6), "\n")
+cat("¿Son iguales?", abs(prob_condicional_g - prob_t_g) < 1e-10, "\n\n")
+
+# Verificación con los datos simulados
+sobrevivientes <- datos_g[datos_g >= s_g]
+cat("Verificación con la simulación:\n")
+cat("Observaciones con X ≥", s_g, ":", length(sobrevivientes), "\n")
+cat("Proporción observada de P(X ≥", s_g + t_g, "| X ≥", s_g, "):",
+    round(mean(sobrevivientes >= s_g + t_g), 4), "\n")
+cat("Proporción observada de P(X ≥", t_g, "):", round(mean(datos_g >= t_g), 4), "\n")
+```
+
+En este problema, el hecho de que ya se hayan inspeccionado 30 piezas sin encontrar defectuosas no cambia la probabilidad de necesitar 20 más: la máquina "no recuerda" lo que ya pasó.
+
+---
+
+::: {#exr-geom_2}
+
+Generar $k=1000$ muestras de tamaño $n=50$ de una distribución geométrica para alguna $p$, y verificar el Teorema Central del Límite para las medias muestrales.
+
+:::
+
+**Solución**
+
+Se toma $p = 0.2$. Entonces la esperanza y la varianza de cada observación son $\mu = \frac{1-p}{p} = \frac{0.8}{0.2} = 4$ y $\sigma^2 = \frac{1-p}{p^2} = \frac{0.8}{0.04} = 20$. Luego, la media muestral
+
+\begin{equation}
+\bar{X}_{50} = \frac{1}{50} \sum_{i=1}^{50} X_i
+\end{equation}
+
+tendrá aproximadamente la siguiente distribución:
+
+\begin{equation}
+\bar{X}_{50} \sim N\left(4, \frac{20}{50}\right)
+\end{equation}
+
+```{r}
+#| label: ejercicio-geom2-tcl
+#| code-fold: true
+#| fig-width: 8
+#| fig-height: 6
+#| fig-align: "center"
+
+# Parámetros
+k_tcl_g <- 1000
+n_muestra_g <- 50
+p_tcl_g <- 0.2
+
+mu_tcl_g <- (1 - p_tcl_g) / p_tcl_g
+var_tcl_g <- (1 - p_tcl_g) / (p_tcl_g^2)
+var_media_g <- var_tcl_g / n_muestra_g
+
+# Simular medias muestrales
+set.seed(456)
+medias_g <- replicate(k_tcl_g, {
+  muestra <- rgeom(n_muestra_g, p_tcl_g)
+  mean(muestra)
+})
+
+# Histograma
+hist_g <- data.frame(Medias = medias_g)
+
+ggplot(hist_g) +
+  geom_histogram(aes(x = Medias, after_stat(density)), bins = 30,
+                 fill = "lightblue", alpha = 0.7, color = "black") +
+  geom_density(aes(x = Medias), color = "red", linewidth = 1) +
+  geom_function(fun = dnorm, args = list(mean = mu_tcl_g, sd = sqrt(var_media_g)),
+                color = "darkgreen", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = mean(medias_g),
+             color = "blue", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribución de Medias Muestrales",
+       subtitle = paste("n =", n_muestra_g, "de una v.a. geométrica(", p_tcl_g, ")"),
+       x = "Media Muestral",
+       y = "Densidad",
+       caption = "Roja: densidad estimada | Verde: normal teórica | Azul: media observada") +
+  tema_clase
+
+# Estadísticas
+cat("Media teórica:", mu_tcl_g, "\n")
+cat("Media observada:", round(mean(medias_g), 4), "\n")
+cat("Varianza teórica de la media:", var_media_g, "\n")
+cat("Varianza observada de la media:", round(var(medias_g), 4), "\n")
+```
+
+**Gráfico cuantil-cuantil (QQ-plot)**
+
+```{r}
+#| label: ejercicio-geom2-qq
+#| code-fold: true
+#| fig-align: center
+
+ggplot(hist_g, aes(sample = Medias)) +
+  stat_qq(color = "steelblue", alpha = 0.7) +
+  stat_qq_line(color = "red", linewidth = 1) +
+  labs(title = "QQ-plot de las Medias Muestrales",
+       subtitle = "Comparación con la distribución normal",
+       x = "Cuantiles teóricos",
+       y = "Cuantiles muestrales") +
+  tema_clase
+
+# Prueba de normalidad
+cat("Prueba de Shapiro-Wilk, p-valor:", round(shapiro.test(medias_g)$p.value, 4), "\n")
+```
+
+La distribución geométrica es muy asimétrica (la mayor parte de la probabilidad está cerca de 0 y tiene cola larga a la derecha), pero las medias muestrales de tamaño 50 se distribuyen de forma aproximadamente normal con media 4 y varianza $20/50 = 0.4$, tal como lo predice el Teorema Central del Límite.
+
+---
+
+<br>

@@ -1,0 +1,548 @@
+---
+title: "Distribución Poisson: Solución de Ejercicios Propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(gridExtra)
+library(patchwork)
+```
+
+## Ejercicios Propuestos
+
+::: {#exr-tcl_poisson}
+Implementa una verificación completa del Teorema Central del Límite para una distribución Poisson con $\lambda = 7$.
+:::
+
+**Solución**
+
+**Configuración del Experimento**
+
+Consideremos una variable aleatoria $X \sim \text{Poisson}(\lambda = 7)$. Se generan múltiples muestras de diferentes tamaños y se observa cómo se comporta la distribución de la media muestral $\bar{X}$.
+
+**Teoría esperada:**
+
+- Para muestras de tamaño $n$ de $X \sim \text{Poisson}(\lambda)$
+- $\bar{X} \sim N\left(\lambda, \frac{\lambda}{n}\right)$ cuando $n$ es grande
+- $E(\bar{X}) = \lambda$ y $\text{Var}(\bar{X}) = \frac{\lambda}{n}$
+- La asimetría de $\bar{X}$ es $\frac{1}{\sqrt{n\lambda}}$, que tiende a 0 cuando $n$ crece (la normal es simétrica)
+
+```{r tcl7-configuracion}
+# Parámetros del experimento
+lambda_tcl <- 7
+tamaños_muestra <- c(5, 10, 25, 50, 100)
+num_muestras <- 2000
+
+cat("CONFIGURACIÓN DEL EXPERIMENTO\n")
+cat("=============================\n")
+cat("Distribución original: Poisson(λ =", lambda_tcl, ")\n")
+cat("Tamaños de muestra:", paste(tamaños_muestra, collapse = ", "), "\n")
+cat("Número de muestras por tamaño:", num_muestras, "\n\n")
+
+cat("Parámetros teóricos de la distribución original:\n")
+cat("E(X) =", lambda_tcl, "\n")
+cat("Var(X) =", lambda_tcl, "\n")
+cat("SD(X) =", round(sqrt(lambda_tcl), 3), "\n")
+```
+
+**Generación de Muestras y Cálculo de Medias**
+
+```{r tcl7-generacion}
+# Función para generar medias muestrales
+generar_medias_muestrales <- function(n, num_muestras, lambda) {
+  medias <- numeric(num_muestras)
+  for(i in 1:num_muestras) {
+    muestra <- rpois(n, lambda)
+    medias[i] <- mean(muestra)
+  }
+  return(medias)
+}
+
+# Generar medias para cada tamaño de muestra
+set.seed(2026)
+medias_muestrales <- list()
+
+for(i in seq_along(tamaños_muestra)) {
+  n <- tamaños_muestra[i]
+  medias_muestrales[[i]] <- generar_medias_muestrales(n, num_muestras, lambda_tcl)
+  names(medias_muestrales)[i] <- paste("n", n, sep = "_")
+}
+
+# Crear data frame para análisis
+data_tcl <- do.call(rbind, lapply(seq_along(medias_muestrales), function(i) {
+  data.frame(
+    media_muestral = medias_muestrales[[i]],
+    n = tamaños_muestra[i],
+    n_label = paste("n =", tamaños_muestra[i])
+  )
+}))
+
+data_tcl$n_label <- factor(data_tcl$n_label, levels = paste("n =", tamaños_muestra))
+
+cat("Muestras generadas exitosamente.\n")
+cat("Total de observaciones:", nrow(data_tcl), "\n")
+```
+
+**Verificación de Convergencia de Media, Varianza y Asimetría**
+
+```{r tcl7-convergencia}
+# Función para calcular la asimetría muestral
+asimetria <- function(x) mean(((x - mean(x)) / sd(x))^3)
+
+estadisticas_tcl <- data.frame(
+  n = tamaños_muestra,
+  Media_Observada = sapply(medias_muestrales, mean),
+  Media_Teorica = rep(lambda_tcl, length(tamaños_muestra)),
+  Var_Observada = sapply(medias_muestrales, var),
+  Var_Teorica = lambda_tcl / tamaños_muestra,
+  Asim_Observada = sapply(medias_muestrales, asimetria),
+  Asim_Teorica = 1 / sqrt(tamaños_muestra * lambda_tcl),
+  Shapiro_p = sapply(medias_muestrales, function(x) shapiro.test(x)$p.value)
+)
+
+kable(estadisticas_tcl, digits = 4,
+      caption = "Convergencia de estadísticos de la media muestral (λ = 7)",
+      col.names = c("n", "Media Obs.", "Media Teór.", "Var. Obs.", "Var. Teór.",
+                    "Asim. Obs.", "Asim. Teór.", "Shapiro p-valor"))
+```
+
+**Visualización de la Convergencia**
+
+```{r tcl7-histogramas, fig.cap="Distribución de medias muestrales de Poisson(7) con la normal teórica", fig.width=9, fig.height=6}
+# Curvas normales teóricas para cada tamaño de muestra
+curvas_normales <- do.call(rbind, lapply(tamaños_muestra, function(n) {
+  sd_n <- sqrt(lambda_tcl / n)
+  x <- seq(lambda_tcl - 4 * sd_n, lambda_tcl + 4 * sd_n, length.out = 300)
+  data.frame(x = x,
+             y = dnorm(x, lambda_tcl, sd_n),
+             n_label = paste("n =", n))
+}))
+curvas_normales$n_label <- factor(curvas_normales$n_label, levels = paste("n =", tamaños_muestra))
+
+ggplot(data_tcl, aes(x = media_muestral)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 25, alpha = 0.6, fill = "#3498DB") +
+  geom_line(data = curvas_normales, aes(x = x, y = y), color = "#E74C3C", linewidth = 1.2) +
+  geom_vline(xintercept = lambda_tcl, color = "black", linetype = "dashed", linewidth = 1) +
+  facet_wrap(~n_label, scales = "free") +
+  labs(title = "Distribución de Medias Muestrales (TCL)",
+       subtitle = paste("Distribución original: Poisson(λ =", lambda_tcl, "). Curva roja: normal teórica N(λ, λ/n)"),
+       x = "Media muestral",
+       y = "Densidad") +
+  theme_minimal()
+```
+
+**Gráficos cuantil-cuantil**
+
+```{r tcl7-qq, fig.cap="QQ-plots de las medias muestrales", fig.width=9, fig.height=6}
+ggplot(data_tcl, aes(sample = media_muestral)) +
+  stat_qq(color = "#3498DB", alpha = 0.6, size = 0.8) +
+  stat_qq_line(color = "#E74C3C", linewidth = 1) +
+  facet_wrap(~n_label, scales = "free") +
+  labs(title = "QQ-plots de las Medias Muestrales",
+       subtitle = "Comparación con la distribución normal",
+       x = "Cuantiles teóricos",
+       y = "Cuantiles muestrales") +
+  theme_minimal()
+```
+
+**Verificación con medias estandarizadas**
+
+Si el TCL se cumple, las medias muestrales estandarizadas $Z = \frac{\bar{X}-\lambda}{\sqrt{\lambda/n}}$ deben comportarse como una $N(0,1)$. Se compara la proporción observada en $[-1.96, 1.96]$ con el valor teórico 0.95:
+
+```{r tcl7-estandarizadas}
+cobertura <- sapply(seq_along(tamaños_muestra), function(i) {
+  n <- tamaños_muestra[i]
+  z <- (medias_muestrales[[i]] - lambda_tcl) / sqrt(lambda_tcl / n)
+  mean(abs(z) <= 1.96)
+})
+
+tabla_cobertura <- data.frame(
+  n = tamaños_muestra,
+  Prop_Observada = cobertura,
+  Prop_Teorica = pnorm(1.96) - pnorm(-1.96)
+)
+
+kable(tabla_cobertura, digits = 4,
+      caption = "Proporción de medias estandarizadas en [-1.96, 1.96]",
+      col.names = c("n", "Proporción observada", "Proporción teórica (N(0,1))"))
+```
+
+**Conclusión:** la media y la varianza de $\bar{X}$ coinciden con $\lambda$ y $\lambda/n$ para todos los tamaños de muestra. Conforme $n$ crece, la asimetría de las medias disminuye hacia 0, los histogramas se ajustan a la curva normal y los QQ-plots se acercan a la recta, con lo que se verifica el Teorema Central del Límite. Esto es distinto de la aproximación normal de la propia Poisson cuando $\lambda$ es grande, ya que aquí se trata de la distribución de la **media muestral**.
+
+---
+
+::: {#exr-prop_aditiva}
+Verifica por simulación que si $X_1 \sim \text{Poisson}(3.5)$ y $X_2 \sim \text{Poisson}(2.8)$ son independientes, entonces $X_1 + X_2 \sim \text{Poisson}(6.3)$.
+
+**Pasos específicos:**
+
+a)  Generar 10,000 muestras de cada distribución y calcule su suma
+b)  Comparar las estadísticas de la suma con una Poisson(6.3) directa
+c)  Extienda la verificación a la suma de 4 variables Poisson independientes
+:::
+
+**Solución**
+
+**a) Generación de las muestras y su suma**
+
+```{r aditiva-suma}
+# Parámetros
+lambda1 <- 3.5
+lambda2 <- 2.8
+lambda_suma <- lambda1 + lambda2
+n_sim_suma <- 10000
+
+set.seed(123)
+
+# Generar dos Poisson independientes y sumarlas
+X1 <- rpois(n_sim_suma, lambda1)
+X2 <- rpois(n_sim_suma, lambda2)
+suma_simulada <- X1 + X2
+
+cat("X₁ ~ Poisson(", lambda1, "), X₂ ~ Poisson(", lambda2, ")\n")
+cat("Número de simulaciones:", format(n_sim_suma, big.mark = ","), "\n")
+cat("Primeros 10 valores de X₁ + X₂:", head(suma_simulada, 10), "\n")
+```
+
+**b) Comparación con una Poisson(6.3) directa**
+
+```{r aditiva-comparacion}
+# Método 2: Generar directamente de Poisson(λ₁ + λ₂)
+poisson_directa <- rpois(n_sim_suma, lambda_suma)
+
+# Comparar estadísticas
+stats_suma <- data.frame(
+  Método = c("X₁ + X₂ (Suma)", "Poisson Directa", "Teórico"),
+  Media = c(mean(suma_simulada), mean(poisson_directa), lambda_suma),
+  Varianza = c(var(suma_simulada), var(poisson_directa), lambda_suma),
+  Desv_Std = c(sd(suma_simulada), sd(poisson_directa), sqrt(lambda_suma)),
+  Min = c(min(suma_simulada), min(poisson_directa), 0),
+  Max = c(max(suma_simulada), max(poisson_directa), NA)
+)
+
+kable(stats_suma, digits = 4,
+      caption = paste("Verificación suma de Poisson (λ₁ =", lambda1, ", λ₂ =", lambda2, ")"))
+
+cat("\nSUMA TEÓRICA:\n")
+cat("=============\n")
+cat("Y = X₁ + X₂ ~ Poisson(", lambda_suma, ")\n")
+cat("E[Y] = E(X₁) + E(X₂) =", lambda_suma, "\n")
+cat("Var(Y) = Var(X₁) + Var(X₂) =", lambda_suma, " (por independencia)\n")
+```
+
+**Comparación de las probabilidades**
+
+```{r aditiva-probabilidades}
+# Comparar frecuencias relativas con las probabilidades teóricas de Poisson(6.3)
+k_vals <- 0:15
+freq_suma <- as.numeric(table(factor(suma_simulada, levels = k_vals))) / n_sim_suma
+freq_directa <- as.numeric(table(factor(poisson_directa, levels = k_vals))) / n_sim_suma
+prob_teorica <- dpois(k_vals, lambda_suma)
+
+comparacion_prob <- data.frame(
+  k = k_vals,
+  Freq_Suma = freq_suma,
+  Freq_Directa = freq_directa,
+  Prob_Teorica = prob_teorica
+)
+
+kable(comparacion_prob, digits = 4,
+      caption = "Frecuencias relativas vs probabilidades teóricas de Poisson(6.3)",
+      col.names = c("k", "Freq. X₁ + X₂", "Freq. Poisson directa", "Prob. teórica"))
+
+# Prueba chi-cuadrado de bondad de ajuste (la última categoría agrupa la cola, k >= 18)
+corte <- 18
+conteos <- as.numeric(table(factor(pmin(suma_simulada, corte), levels = 0:corte)))
+probs_chi <- c(dpois(0:(corte - 1), lambda_suma), 1 - ppois(corte - 1, lambda_suma))
+
+prueba <- chisq.test(conteos, p = probs_chi, simulate.p.value = TRUE, B = 5000)
+cat("\nPrueba chi-cuadrado de bondad de ajuste (X₁ + X₂ vs Poisson(6.3)), p-valor:",
+    round(prueba$p.value, 4), "\n")
+```
+
+Un p-valor grande (mayor que 0.05) indica que no hay evidencia contra la hipótesis de que $X_1 + X_2 \sim \text{Poisson}(6.3)$.
+
+**Comparación visual**
+
+```{r aditiva-grafico, fig.cap="Suma de Poisson vs Poisson directa vs probabilidad teórica"}
+datos_grafico <- data.frame(
+  k = rep(k_vals, 2),
+  Frecuencia = c(freq_suma, freq_directa),
+  Método = rep(c("X1 + X2", "Poisson(6.3) directa"), each = length(k_vals))
+)
+
+ggplot(datos_grafico, aes(x = k, y = Frecuencia, fill = Método)) +
+  geom_col(alpha = 0.7, position = "dodge", width = 0.8) +
+  geom_line(data = data.frame(k = k_vals, p = prob_teorica), aes(x = k, y = p),
+            inherit.aes = FALSE, color = "black", linewidth = 1) +
+  geom_point(data = data.frame(k = k_vals, p = prob_teorica), aes(x = k, y = p),
+             inherit.aes = FALSE, color = "black", size = 2) +
+  scale_x_continuous(breaks = k_vals) +
+  labs(title = "Verificación de la Propiedad Aditiva de Poisson",
+       subtitle = paste("λ1 =", lambda1, ", λ2 =", lambda2, ", λ1+λ2 =", lambda_suma),
+       x = "Número de eventos",
+       y = "Frecuencia relativa",
+       caption = "Línea negra: probabilidad teórica de Poisson(6.3)") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  scale_fill_manual(values = c("X1 + X2" = "#3498DB", "Poisson(6.3) directa" = "#E74C3C"))
+```
+
+**c) Extensión a la suma de 4 variables Poisson independientes**
+
+Se toman $\lambda_1 = 1.2$, $\lambda_2 = 2.2$, $\lambda_3 = 3.1$ y $\lambda_4 = 0.8$, de modo que $\sum \lambda_i = 7.3$.
+
+```{r aditiva-cuatro, fig.cap="Suma de 4 variables Poisson independientes vs Poisson directa"}
+# Suma de 4 variables Poisson independientes
+lambdas <- c(1.2, 2.2, 3.1, 0.8)
+lambda_total <- sum(lambdas)
+n_vars <- length(lambdas)
+
+# Generar las variables individuales
+variables_poisson <- matrix(0, nrow = n_sim_suma, ncol = n_vars)
+for(i in 1:n_vars) {
+  variables_poisson[, i] <- rpois(n_sim_suma, lambdas[i])
+}
+
+# Suma de las 4 variables
+suma_multiple <- rowSums(variables_poisson)
+
+# Poisson directa con λ total
+poisson_multiple_directa <- rpois(n_sim_suma, lambda_total)
+
+cat("VERIFICACIÓN CON", n_vars, "VARIABLES POISSON\n")
+cat("λ₁ =", lambdas[1], ", λ₂ =", lambdas[2], ", λ₃ =", lambdas[3], ", λ₄ =", lambdas[4], "\n")
+cat("λ_total =", lambda_total, "\n\n")
+
+stats_multiple <- data.frame(
+  Distribución = c("Suma de 4 Poisson", "Poisson(λ_total)", "Teórico"),
+  Media = c(mean(suma_multiple), mean(poisson_multiple_directa), lambda_total),
+  Varianza = c(var(suma_multiple), var(poisson_multiple_directa), lambda_total)
+)
+
+kable(stats_multiple, digits = 4,
+      caption = "Estadísticas para suma de múltiples variables Poisson")
+
+# Visualización
+k_mult <- 0:18
+freq_mult_suma <- as.numeric(table(factor(suma_multiple, levels = k_mult))) / n_sim_suma
+freq_mult_directa <- as.numeric(table(factor(poisson_multiple_directa, levels = k_mult))) / n_sim_suma
+
+data_multiple <- data.frame(
+  k = rep(k_mult, 2),
+  Frecuencia = c(freq_mult_suma, freq_mult_directa),
+  tipo = rep(c("Suma de 4 Poisson", "Poisson(7.3) directa"), each = length(k_mult))
+)
+
+ggplot(data_multiple, aes(x = k, y = Frecuencia, fill = tipo)) +
+  geom_col(alpha = 0.7, position = "dodge", width = 0.8) +
+  geom_line(data = data.frame(k = k_mult, p = dpois(k_mult, lambda_total)), aes(x = k, y = p),
+            inherit.aes = FALSE, color = "black", linewidth = 1) +
+  scale_x_continuous(breaks = k_mult) +
+  labs(title = "Suma de Múltiples Variables Poisson",
+       subtitle = paste("λ_total =", lambda_total),
+       x = "Número de eventos",
+       y = "Frecuencia relativa",
+       fill = "Tipo",
+       caption = "Línea negra: probabilidad teórica de Poisson(7.3)") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  scale_fill_manual(values = c("#2ECC71", "#F39C12"))
+```
+
+La suma de las 4 variables tiene la misma media, varianza y distribución que una Poisson(7.3), con lo que se verifica la propiedad aditiva también para varias variables.
+
+---
+
+::: {#exr-inventarios}
+Una tienda registra que el número de cierto producto vendido por día sigue una distribución Poisson con $\lambda = 8$.
+
+**Problemas de optimización:**
+
+a)  Si la tienda mantiene un inventario de 12 unidades al inicio del día, ¿cuál es la probabilidad de quedarse sin existencias?
+
+b)  ¿Cuántas unidades debe tener para que la probabilidad de agotarse sea menor al 5%?
+
+c)  Calcule el costo esperado diario si:
+
+    - Cada unidad no vendida cuesta \$2 mantenerla en inventario
+    - Cada venta perdida por falta de stock cuesta \$15
+    - El costo de adquisición es \$10 por unidad
+
+d)  Determine el nivel óptimo de inventario que minimiza el costo total esperado.
+:::
+
+**Solución**
+
+Sea $X$ la demanda diaria, $X \sim \text{Poisson}(8)$. Si el inventario inicial es $S$ unidades:
+
+- El inventario **se agota** cuando la demanda es al menos $S$, es decir $X \geq S$.
+- Hay **ventas perdidas** solo cuando la demanda supera al inventario, es decir $X > S$.
+
+**a) Probabilidad de quedarse sin existencias con $S = 12$**
+
+$$P(X \geq 12) = 1 - P(X \leq 11) = 1 - \sum_{x=0}^{11}\frac{8^x e^{-8}}{x!}$$
+
+```{r inventario-a}
+lambda_inv <- 8
+S_a <- 12
+
+# Se agota el inventario: demanda >= 12
+prob_agotarse_a <- 1 - ppois(S_a - 1, lambda_inv)
+
+# Hay ventas perdidas: demanda > 12
+prob_perdida_a <- 1 - ppois(S_a, lambda_inv)
+
+cat("Inventario inicial: S =", S_a, "unidades | Demanda ~ Poisson(", lambda_inv, ")\n\n")
+cat("P(agotarse) = P(X ≥", S_a, ") =", round(prob_agotarse_a, 4),
+    "(", round(prob_agotarse_a * 100, 2), "%)\n")
+cat("P(venta perdida) = P(X >", S_a, ") =", round(prob_perdida_a, 4),
+    "(", round(prob_perdida_a * 100, 2), "%)\n")
+```
+
+**b) Inventario para que la probabilidad de agotarse sea menor al 5%**
+
+Se busca el menor $S$ tal que $P(X \geq S) < 0.05$.
+
+```{r inventario-b, fig.cap="Probabilidad de agotarse en función del inventario inicial"}
+S_vals <- 0:25
+tabla_agotarse <- data.frame(
+  S = S_vals,
+  P_agotarse = 1 - ppois(S_vals - 1, lambda_inv),
+  P_venta_perdida = 1 - ppois(S_vals, lambda_inv)
+)
+
+S_b <- min(S_vals[tabla_agotarse$P_agotarse < 0.05])
+S_b_perdida <- min(S_vals[tabla_agotarse$P_venta_perdida < 0.05])
+
+cat("Menor inventario con P(agotarse) = P(X ≥ S) < 5%: S =", S_b,
+    "(P =", round(1 - ppois(S_b - 1, lambda_inv), 4), ")\n")
+cat("Menor inventario con P(venta perdida) = P(X > S) < 5%: S =", S_b_perdida,
+    "(P =", round(1 - ppois(S_b_perdida, lambda_inv), 4), ")\n")
+
+kable(tabla_agotarse[tabla_agotarse$S %in% 10:16, ], digits = 4, row.names = FALSE,
+      caption = "Probabilidades según el inventario inicial",
+      col.names = c("S", "P(X ≥ S): agotarse", "P(X > S): venta perdida"))
+
+ggplot(tabla_agotarse, aes(x = S, y = P_agotarse)) +
+  geom_line(color = "#3498DB", linewidth = 1.2) +
+  geom_point(color = "#3498DB", size = 2) +
+  geom_hline(yintercept = 0.05, color = "#E74C3C", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = S_b, color = "#2ECC71", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = S_b + 4, y = 0.15, label = paste("S =", S_b), color = "#2ECC71", size = 5) +
+  labs(title = "Probabilidad de Agotarse según el Inventario",
+       subtitle = paste("Demanda ~ Poisson(", lambda_inv, "). Línea roja: 5%"),
+       x = "Inventario inicial S",
+       y = "P(agotarse)") +
+  theme_minimal()
+```
+
+**c) Costo esperado diario**
+
+Con un inventario inicial $S$, el costo total esperado por día es:
+
+$$C(S) = \underbrace{10\,S}_{\text{adquisición}} + \underbrace{2\,E[(S-X)^+]}_{\text{mantenimiento}} + \underbrace{15\,E[(X-S)^+]}_{\text{ventas perdidas}}$$
+
+donde $(S-X)^+ = \max(S-X, 0)$ son las unidades no vendidas y $(X-S)^+ = \max(X-S, 0)$ las ventas perdidas. Se supone que el costo de adquisición se paga por cada unidad que se compra para el inventario inicial.
+
+```{r inventario-c}
+# Parámetros de costo
+c_mant <- 2
+c_perdida <- 15
+c_adq <- 10
+
+# Función de costo esperado para un inventario S
+costo_esperado <- function(S, lambda, c_mant = 2, c_perdida = 15, c_adq = 10) {
+  x <- 0:200  # soporte práctico de la Poisson(8)
+  no_vendidas <- sum(pmax(S - x, 0) * dpois(x, lambda))
+  ventas_perdidas <- sum(pmax(x - S, 0) * dpois(x, lambda))
+  data.frame(
+    S = S,
+    Unidades_no_vendidas = no_vendidas,
+    Ventas_perdidas = ventas_perdidas,
+    Costo_adquisicion = c_adq * S,
+    Costo_mantenimiento = c_mant * no_vendidas,
+    Costo_ventas_perdidas = c_perdida * ventas_perdidas,
+    Costo_total = c_adq * S + c_mant * no_vendidas + c_perdida * ventas_perdidas
+  )
+}
+
+# Costo esperado para S = 12 (inventario del inciso a) y S = S_b (inciso b)
+costos_c <- rbind(costo_esperado(S_a, lambda_inv), costo_esperado(S_b, lambda_inv))
+
+kable(costos_c, digits = 3, row.names = FALSE,
+      caption = "Costo esperado diario para distintos niveles de inventario",
+      col.names = c("S", "Unid. no vendidas", "Ventas perdidas", "Adquisición ($)",
+                    "Mantenimiento ($)", "Ventas perdidas ($)", "Costo total ($)"))
+
+# Verificación por simulación para S = 12
+set.seed(2026)
+demanda_sim <- rpois(100000, lambda_inv)
+costo_sim <- mean(c_adq * S_a + c_mant * pmax(S_a - demanda_sim, 0) +
+                    c_perdida * pmax(demanda_sim - S_a, 0))
+
+cat("\nCosto esperado diario con S =", S_a, "(teórico):",
+    round(costos_c$Costo_total[1], 3), "pesos\n")
+cat("Costo promedio simulado (100,000 días):", round(costo_sim, 3), "pesos\n")
+```
+
+**d) Nivel óptimo de inventario**
+
+Al aumentar el inventario de $S$ a $S+1$, la unidad adicional cuesta \$10, se vende con probabilidad $P(X > S)$ (evitando una venta perdida de \$15) y queda sin vender con probabilidad $P(X \leq S)$ (costando \$2 de mantenimiento). Entonces:
+
+$$C(S+1) - C(S) = 10 + 2F(S) - 15\,[1 - F(S)] = 17\,F(S) - 5$$
+
+El costo deja de bajar cuando $17F(S) - 5 \geq 0$, es decir, cuando $F(S) \geq \frac{5}{17} \approx 0.294$. El nivel óptimo es el menor $S$ que cumple esa desigualdad.
+
+```{r inventario-d, fig.cap="Costo total esperado en función del inventario inicial"}
+S_candidatos <- 0:25
+tabla_costos <- do.call(rbind, lapply(S_candidatos, costo_esperado, lambda = lambda_inv))
+
+S_optimo <- tabla_costos$S[which.min(tabla_costos$Costo_total)]
+costo_optimo <- min(tabla_costos$Costo_total)
+
+# Verificación con la condición teórica F(S) >= 5/17
+razon_critica <- (c_perdida - c_adq) / (c_perdida + c_mant)
+S_critico <- min(S_candidatos[ppois(S_candidatos, lambda_inv) >= razon_critica])
+
+cat("Razón crítica (c_perdida - c_adq)/(c_perdida + c_mant) =", round(razon_critica, 4), "\n")
+cat("Menor S con F(S) ≥ razón crítica:", S_critico, "\n")
+cat("Inventario óptimo (mínimo costo total):", S_optimo, "unidades\n")
+cat("Costo total esperado mínimo: $", round(costo_optimo, 2), "\n")
+
+kable(tabla_costos[tabla_costos$S %in% 3:14,
+                   c("S", "Costo_adquisicion", "Costo_mantenimiento", "Costo_ventas_perdidas", "Costo_total")],
+      digits = 3, row.names = FALSE,
+      caption = "Componentes del costo esperado según el inventario inicial",
+      col.names = c("S", "Adquisición ($)", "Mantenimiento ($)", "Ventas perdidas ($)", "Costo total ($)"))
+
+ggplot(tabla_costos, aes(x = S, y = Costo_total)) +
+  geom_line(color = "#3498DB", linewidth = 1.2) +
+  geom_point(color = "#3498DB", size = 2) +
+  geom_point(data = tabla_costos[tabla_costos$S == S_optimo, ],
+             color = "#E74C3C", size = 4) +
+  geom_vline(xintercept = S_optimo, color = "#E74C3C", linetype = "dashed") +
+  annotate("text", x = S_optimo + 3, y = max(tabla_costos$Costo_total) * 0.9,
+           label = paste("Óptimo: S =", S_optimo), color = "#E74C3C", size = 5) +
+  labs(title = "Costo Total Esperado vs Inventario Inicial",
+       subtitle = paste("Demanda ~ Poisson(", lambda_inv, ")"),
+       x = "Inventario inicial S",
+       y = "Costo total esperado ($)") +
+  theme_minimal()
+```
+
+**Nota:** este resultado depende de cómo se interprete el costo de adquisición. Como el enunciado solo incluye costos y no ingresos por venta, el nivel que minimiza el costo total resulta menor que la demanda promedio. Si se quisiera maximizar la utilidad, habría que agregar el precio de venta o el margen por unidad.
+
+---
+
+<br>
