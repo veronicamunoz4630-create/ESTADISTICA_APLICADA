@@ -1,0 +1,651 @@
+---
+title: "Distribución Ji-cuadrada - Ejercicios propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+#| warning: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+library(scales)
+library(viridis)
+```
+
+## Ejercicio 1: Convergencia de estadísticos muestrales
+
+> Genera muestras aleatorias de diferentes tamaños desde 100 hasta 10000 observaciones para las distribuciones ji-cuadrada con n = 5, 20 y 50 grados de libertad. En cada caso:
+>
+> 1.  Genera una gráfica de convergencia de la media muestral hacia la media teórica a medida que aumenta el tamaño de la muestra.
+> 2.  Genera una gráfica de convergencia de la varianza muestral hacia la varianza teórica a medida que aumenta el tamaño de la muestra.
+> 3.  Para el tamaño de muestra más grande, genera un histograma de la muestra junto con la función de densidad teórica superpuesta.
+
+Para $X \sim \chi^2(n)$ los valores teóricos son $E(X) = n$ y $\text{Var}(X) = 2n$.
+
+```{r}
+#| label: ej1-simulacion
+
+set.seed(2026)
+
+grados <- c(5, 20, 50)
+tamanos <- seq(100, 10000, by = 100)
+
+# Para cada grado de libertad y cada tamaño se genera una muestra independiente
+df_conv <- do.call(rbind, lapply(grados, function(g) {
+  do.call(rbind, lapply(tamanos, function(n) {
+    x <- rchisq(n, df = g)
+    data.frame(n = n, gl = g, media = mean(x), varianza = var(x))
+  }))
+}))
+
+df_conv$media_teorica <- df_conv$gl
+df_conv$varianza_teorica <- 2 * df_conv$gl
+df_conv$gl_factor <- factor(paste("gl =", df_conv$gl),
+                            levels = paste("gl =", grados))
+```
+
+### Convergencia de la media muestral
+
+```{r}
+#| label: ej1-convergencia-media
+#| fig-height: 4.5
+
+ggplot(df_conv, aes(x = n, y = media)) +
+  geom_line(color = "blue", alpha = 0.8) +
+  geom_hline(aes(yintercept = media_teorica), color = "red",
+             linetype = "dashed", linewidth = 1) +
+  facet_wrap(~gl_factor, scales = "free_y", ncol = 3) +
+  labs(title = "Convergencia de la media muestral",
+       subtitle = "Distribución ji-cuadrada",
+       x = "Tamaño de muestra (n)",
+       y = "Media muestral",
+       caption = "Línea roja: Media teórica E(X) = gl") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 12),
+    axis.title.y = element_text(face = "bold", size = 12)
+  )
+```
+
+### Convergencia de la varianza muestral
+
+```{r}
+#| label: ej1-convergencia-varianza
+#| fig-height: 4.5
+
+ggplot(df_conv, aes(x = n, y = varianza)) +
+  geom_line(color = "darkgreen", alpha = 0.8) +
+  geom_hline(aes(yintercept = varianza_teorica), color = "red",
+             linetype = "dashed", linewidth = 1) +
+  facet_wrap(~gl_factor, scales = "free_y", ncol = 3) +
+  labs(title = "Convergencia de la varianza muestral",
+       subtitle = "Distribución ji-cuadrada",
+       x = "Tamaño de muestra (n)",
+       y = "Varianza muestral",
+       caption = "Línea roja: Varianza teórica Var(X) = 2·gl") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 12),
+    axis.title.y = element_text(face = "bold", size = 12)
+  )
+```
+
+**Resumen para el tamaño de muestra más grande (n = 10000)**
+
+```{r}
+#| label: ej1-tabla
+
+tabla_final <- df_conv %>%
+  filter(n == max(tamanos)) %>%
+  mutate(
+    error_media = abs(media - media_teorica) / media_teorica * 100,
+    error_varianza = abs(varianza - varianza_teorica) / varianza_teorica * 100
+  )
+
+kable(tabla_final[, c("gl", "media", "media_teorica", "error_media",
+                      "varianza", "varianza_teorica", "error_varianza")],
+      caption = "Estadísticos muestrales vs teóricos con 10000 observaciones",
+      digits = 4,
+      col.names = c("gl", "Observada", "Teórica", "Error %",
+                    "Observada", "Teórica", "Error %")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  add_header_above(c(" " = 1, "Media" = 3, "Varianza" = 3))
+```
+
+<br>
+
+**Interpretación**
+
+En las tres distribuciones, la media y la varianza muestrales oscilan al principio (muestras de 100 observaciones) y se estabilizan alrededor de los valores teóricos $n$ y $2n$ conforme aumenta el tamaño de muestra, como lo indica la ley de los grandes números. La varianza muestral fluctúa más que la media, y esa fluctuación en términos absolutos crece con los grados de libertad porque $2n$ también crece.
+
+### Histograma para el tamaño de muestra más grande
+
+```{r}
+#| label: ej1-histogramas
+#| fig-height: 4.5
+
+# Muestra de 10000 observaciones para cada grado de libertad
+muestra_grande <- do.call(rbind, lapply(grados, function(g) {
+  data.frame(x = rchisq(10000, df = g), gl_factor = paste("gl =", g))
+}))
+muestra_grande$gl_factor <- factor(muestra_grande$gl_factor,
+                                   levels = paste("gl =", grados))
+
+# Densidades teóricas
+curvas_teoricas <- do.call(rbind, lapply(grados, function(g) {
+  x <- seq(0, qchisq(0.9995, df = g), length.out = 400)
+  data.frame(x = x, y = dchisq(x, df = g), gl_factor = paste("gl =", g))
+}))
+curvas_teoricas$gl_factor <- factor(curvas_teoricas$gl_factor,
+                                    levels = paste("gl =", grados))
+
+ggplot(muestra_grande, aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = "lightblue", color = "black", alpha = 0.7, boundary = 0) +
+  geom_line(data = curvas_teoricas, aes(x = x, y = y),
+            color = "red", linewidth = 1.2) +
+  facet_wrap(~gl_factor, scales = "free", ncol = 3) +
+  labs(title = "Histograma de la muestra vs densidad teórica",
+       subtitle = "10000 observaciones de una distribución ji-cuadrada",
+       x = "Valores",
+       y = "Densidad",
+       caption = "Curva roja: Densidad ji-cuadrada teórica") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 12),
+    axis.title.y = element_text(face = "bold", size = 12)
+  )
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 2: Teorema Central del Límite
+
+> Para diferentes tamaños de muestra verifica numéricamente el Teorema Central del Límite aplicado a la distribución ji-cuadrada, elige cualquier valor de los grados de libertad.
+
+Elegimos $X \sim \chi^2(4)$, para la cual $\mu = 4$ y $\sigma^2 = 8$. Por el TCL:
+
+$$\bar{X} \approx N\left(\mu, \frac{\sigma^2}{n}\right) = N\left(4, \frac{8}{n}\right)$$
+
+Generamos 2000 medias muestrales para cada tamaño de muestra $n = 2, 5, 10, 30, 50, 100$.
+
+```{r}
+#| label: ej2-simulacion
+
+set.seed(2026)
+
+gl_tcl <- 4
+media_poblacional <- gl_tcl
+varianza_poblacional <- 2 * gl_tcl
+
+tamanos_tcl <- c(2, 5, 10, 30, 50, 100)
+num_muestras <- 2000
+
+df_tcl <- do.call(rbind, lapply(tamanos_tcl, function(n) {
+  data.frame(
+    medias = replicate(num_muestras, mean(rchisq(n, df = gl_tcl))),
+    n = n
+  )
+}))
+df_tcl$n_factor <- factor(paste("n =", df_tcl$n),
+                          levels = paste("n =", tamanos_tcl))
+
+cat("=== χ²(", gl_tcl, ") ===\n")
+cat("Media poblacional (μ):", media_poblacional, "\n")
+cat("Varianza poblacional (σ²):", varianza_poblacional, "\n")
+```
+
+### Media y varianza de las medias muestrales
+
+```{r}
+#| label: ej2-tabla
+
+estadisticos_tcl <- df_tcl %>%
+  group_by(n) %>%
+  summarise(
+    media_observada = mean(medias),
+    varianza_observada = var(medias),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    media_teorica = media_poblacional,
+    varianza_teorica = varianza_poblacional / n,
+    error_varianza = abs(varianza_observada - varianza_teorica) / varianza_teorica * 100
+  )
+
+kable(estadisticos_tcl[, c("n", "media_observada", "media_teorica",
+                           "varianza_observada", "varianza_teorica", "error_varianza")],
+      caption = "Convergencia de las medias muestrales (2000 muestras por tamaño)",
+      digits = 4,
+      col.names = c("n", "Media obs.", "Media teórica (μ)",
+                    "Var. obs.", "Var. teórica (σ²/n)", "Error var. %")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+### Histogramas con la normal teórica
+
+```{r}
+#| label: ej2-histogramas
+#| fig-height: 7
+
+df_normal_teorica <- do.call(rbind, lapply(tamanos_tcl, function(n) {
+  sd_n <- sqrt(varianza_poblacional / n)
+  x <- seq(max(0, media_poblacional - 4 * sd_n), media_poblacional + 4 * sd_n, length.out = 300)
+  data.frame(
+    x = x,
+    y = dnorm(x, mean = media_poblacional, sd = sd_n),
+    n_factor = paste("n =", n)
+  )
+}))
+df_normal_teorica$n_factor <- factor(df_normal_teorica$n_factor,
+                                     levels = levels(df_tcl$n_factor))
+
+ggplot(df_tcl, aes(x = medias)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = media_poblacional,
+             color = "red", linetype = "dashed", linewidth = 1) +
+  geom_line(data = df_normal_teorica, aes(x = x, y = y),
+            color = "red", linewidth = 1, alpha = 0.65) +
+  facet_wrap(~n_factor, scales = "free", ncol = 3) +
+  labs(title = "Teorema central del límite - Distribución ji-cuadrada",
+       subtitle = paste("Distribución de medias muestrales para χ²(", gl_tcl, ")"),
+       x = "Media muestral",
+       y = "Densidad",
+       caption = "Línea roja punteada: Media teórica | Curva roja: Normal teórica N(μ, σ²/n)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+### Gráficos Q-Q y pruebas de normalidad
+
+```{r}
+#| label: ej2-normalidad
+#| fig-height: 7
+
+ggplot(df_tcl, aes(sample = medias)) +
+  stat_qq(color = "steelblue", alpha = 0.6, size = 0.8) +
+  stat_qq_line(color = "red", linewidth = 1) +
+  facet_wrap(~n_factor, ncol = 3) +
+  labs(title = "Gráficos Q-Q de las medias muestrales",
+       subtitle = "Comparación con la distribución normal",
+       x = "Cuantiles teóricos",
+       y = "Cuantiles muestrales") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5))
+
+# Asimetría muestral
+asimetria <- function(x) mean((x - mean(x))^3) / sd(x)^3
+
+tabla_normalidad <- df_tcl %>%
+  group_by(n) %>%
+  summarise(
+    asimetria_obs = asimetria(medias),
+    shapiro_p = shapiro.test(medias)$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # Asimetría de χ²(k) = sqrt(8/k); la de la media muestral es sqrt(8/(k n))
+    asimetria_teorica = sqrt(8 / (gl_tcl * n)),
+    decision = ifelse(shapiro_p > 0.05, "No se rechaza normalidad", "Se rechaza normalidad")
+  )
+
+kable(tabla_normalidad[, c("n", "asimetria_obs", "asimetria_teorica", "shapiro_p", "decision")],
+      caption = "Asimetría de las medias muestrales y prueba de Shapiro-Wilk",
+      digits = 4,
+      col.names = c("n", "Asimetría observada", "Asimetría teórica", "Valor p (Shapiro-Wilk)", "Decisión")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+<br>
+
+**Conclusión**
+
+Con $n$ pequeño ($n = 2, 5$) la distribución de las medias aún conserva el sesgo a la derecha de la $\chi^2(4)$. Conforme aumenta $n$, la asimetría disminuye, los histogramas se ajustan a la curva $N(4, 8/n)$ y los gráficos Q-Q se alinean con la recta: se verifica numéricamente el Teorema Central del Límite. La varianza de las medias muestrales es muy cercana a $\sigma^2/n = 8/n$ en todos los casos.
+
+------------------------------------------------------------------------
+
+## Ejercicio 3: Suma de normales estándar al cuadrado
+
+> Mediante simulaciones numéricas, verifica la propiedad de aditividad de la distribución ji-cuadrada sumando variables aleatorias normales estándar elevadas al cuadrado. Compara los resultados con la distribución ji-cuadrada teórica.
+
+Si $Z_1, \dots, Z_n$ son $N(0,1)$ independientes, entonces $Z_i^2 \sim \chi^2(1)$ y, por aditividad,
+
+$$Z_1^2 + Z_2^2 + \cdots + Z_n^2 \sim \chi^2(n).$$
+
+Simulamos 10000 sumas para $n = 4, 8, 12, 15$ y las comparamos con la densidad $\chi^2(n)$.
+
+```{r}
+#| label: ej3-simulacion
+
+set.seed(2026)
+
+N <- 10000
+
+nvar_vec <- c(4, 8, 12, 15)
+
+suma_function <- function(nvar, N){
+  var_sum <- rnorm(N)^2
+  for(k in 2:nvar) {
+    var_sum <- var_sum + rnorm(N)^2
+  }
+  return(var_sum)
+}
+
+data_var <- data.frame()
+
+for (nvar in nvar_vec) {
+  df_temp <- data.frame(
+    Valor = suma_function(nvar, N),
+    n_factor = paste("n =", nvar)
+  )
+  data_var <- rbind(data_var, df_temp)
+}
+
+data_var$n_factor <- factor(data_var$n_factor, levels = paste("n =", nvar_vec))
+
+df_ji <- data.frame()
+x_range <- seq(0, 40, length.out = 250)
+
+for (nvar in nvar_vec) {
+  df_temp <- data.frame(
+    x = x_range,
+    y = dchisq(x_range, nvar),
+    n_factor = paste("n =", nvar)
+  )
+  df_ji <- rbind(df_ji, df_temp)
+}
+
+df_ji$n_factor <- factor(df_ji$n_factor, levels = paste("n =", nvar_vec))
+```
+
+```{r}
+#| label: ej3-histogramas
+
+# Histogramas de las sumas con la densidad ji-cuadrada teórica
+ggplot(data_var) +
+  geom_histogram(aes(x = Valor, y = after_stat(density)), bins = 50,
+                 fill = "lightblue", color = "black", alpha = 0.7, boundary = 0) +
+  # Superponer curva teórica
+  geom_line(data = df_ji, aes(x = x, y = y),
+            color = "red", linewidth = 1, alpha = 0.65) +
+  facet_wrap(~n_factor, scales = "free_y", ncol = 2) +
+  labs(title = "Simulación proposición",
+       x = " ",
+       y = "Densidad",
+       caption = "Curva roja: Ji cuadrada teórica") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+**Comparación numérica con la distribución teórica**
+
+```{r}
+#| label: ej3-tabla
+
+tabla_suma_normal <- data_var %>%
+  mutate(gl = as.numeric(sub("n = ", "", as.character(n_factor)))) %>%
+  group_by(gl) %>%
+  summarise(
+    media_obs = mean(Valor),
+    varianza_obs = var(Valor),
+    ks_p = ks.test(Valor, "pchisq", df = first(gl))$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    media_teo = gl,
+    varianza_teo = 2 * gl,
+    decision = ifelse(ks_p > 0.05, "No se rechaza χ²(n)", "Se rechaza χ²(n)")
+  )
+
+kable(tabla_suma_normal[, c("gl", "media_obs", "media_teo", "varianza_obs", "varianza_teo", "ks_p", "decision")],
+      caption = "Suma de n normales estándar al cuadrado vs χ²(n)",
+      digits = 4,
+      col.names = c("n", "Media obs.", "Media teórica (n)",
+                    "Var. obs.", "Var. teórica (2n)", "Valor p (K-S)", "Decisión")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+<br>
+
+**Conclusión**
+
+Los histogramas de las sumas $Z_1^2 + \cdots + Z_n^2$ coinciden con la densidad $\chi^2(n)$, las medias y varianzas observadas se aproximan a $n$ y $2n$, y la prueba de Kolmogorov-Smirnov no rechaza el ajuste. Esto verifica que la suma de $n$ normales estándar al cuadrado sigue una distribución ji-cuadrada con $n$ grados de libertad.
+
+------------------------------------------------------------------------
+
+## Ejercicio 4: Aproximación normal
+
+> Mediante simulaciones numéricas, verifica la aproximación normal de la distribución ji-cuadrada para diferentes valores de n (por ejemplo, n = 10, 30, 50, 100). Compara las distribuciones muestrales con la normal teórica.
+
+La aproximación es $\chi^2(n) \approx N(n, 2n)$.
+
+```{r}
+#| label: ej4-simulacion
+#| fig-height: 7
+
+set.seed(2026)
+
+N <- 10000
+
+# Comparación con aproximación normal
+n_grandes <- c(10, 30, 50, 100)
+
+# Crear subgráficos para cada valor de n
+plots_normal <- list()
+
+for (i in seq_along(n_grandes)) {
+  n_val <- n_grandes[i]
+  data_sim <- tibble(Muestra = 1:N, Valor = rchisq(N, n_val))
+
+  plots_normal[[i]] <- ggplot() +
+    geom_histogram(data = data_sim, aes(x = Valor, y = after_stat(density)), fill = "#3AAA23", color = "black",
+                   center = n_val, bins = 50) +
+    geom_function(fun = dchisq, args = list(df = n_grandes[i]),
+                  aes(color = "Ji-cuadrada"), linewidth = 1.2) +
+    geom_function(fun = dnorm, args = list(mean = n_grandes[i], sd = sqrt(2*n_grandes[i])),
+                  aes(color = "Normal"), linewidth = 1.2) +
+    scale_color_manual(
+      values = c("Ji-cuadrada" = "#d62728", "Normal" = "steelblue"),
+      name = "Distribución"
+    ) +
+    labs(
+      title = paste("n =", n_val),
+      x = "x", y = "f(x)"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5, size = 12),
+      axis.title = element_text(size = 12)
+    )
+}
+
+# Combinar todos los gráficos
+grid.arrange(grobs = plots_normal, ncol = 2,
+             top = "Aproximación Normal: χ²(n) ≈ N(n, 2n)")
+```
+
+**Comparación numérica**
+
+Para medir qué tan buena es la aproximación se calcula, para cada $n$: (i) la media y varianza muestrales, (ii) la asimetría teórica de la ji-cuadrada ($\sqrt{8/n}$, que en la normal es 0), (iii) el percentil 95 exacto contra el de la normal, y (iv) el estadístico $D$ de Kolmogorov-Smirnov entre la muestra y la normal $N(n, 2n)$ (entre menor sea $D$, mejor la aproximación).
+
+```{r}
+#| label: ej4-tabla
+
+set.seed(321)
+
+tabla_aprox <- do.call(rbind, lapply(n_grandes, function(n) {
+  x <- rchisq(N, n)
+  data.frame(
+    n = n,
+    media_sim = mean(x),
+    var_sim = var(x),
+    asimetria_teorica = sqrt(8 / n),
+    q95_chi = qchisq(0.95, df = n),
+    q95_normal = qnorm(0.95, mean = n, sd = sqrt(2 * n)),
+    D_KS = unname(ks.test(x, "pnorm", mean = n, sd = sqrt(2 * n))$statistic)
+  )
+}))
+
+kable(tabla_aprox,
+      caption = "Calidad de la aproximación normal a la ji-cuadrada",
+      digits = 4,
+      col.names = c("n", "Media sim.", "Var. sim.", "Asimetría teórica",
+                    "Percentil 95 χ²(n)", "Percentil 95 N(n, 2n)", "D (K-S vs normal)")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+<br>
+
+**Conclusión**
+
+Para $n = 10$ la ji-cuadrada todavía tiene un sesgo a la derecha evidente y la normal queda "corrida" respecto al histograma (el percentil 95 de la normal subestima al de la ji-cuadrada). Conforme aumenta $n$, la asimetría $\sqrt{8/n}$ disminuye, el estadístico $D$ baja, y las curvas ji-cuadrada y normal se vuelven prácticamente indistinguibles. Con $n \geq 50$ la aproximación es muy buena y con $n = 100$ casi no hay diferencia visible, lo cual concuerda con los criterios de aproximación presentados en el tema.
+
+------------------------------------------------------------------------
+
+## Ejercicio 5: Aditividad de variables ji-cuadrada independientes
+
+> Por medio de simulaciones numéricas, verifica la propiedad de aditividad de la distribución ji-cuadrada sumando dos variables aleatorias ji-cuadrada independientes. Compara los resultados con la distribución ji-cuadrada teórica.
+
+Si $X_1 \sim \chi^2(n_1)$ y $X_2 \sim \chi^2(n_2)$ son independientes, entonces $X_1 + X_2 \sim \chi^2(n_1 + n_2)$.
+
+Esto se sigue de la función generadora de momentos de la ji-cuadrada, $M_X(t) = (1 - 2t)^{-n/2}$ para $t < 1/2$:
+
+$$M_{X_1 + X_2}(t) = (1 - 2t)^{-n_1/2}\,(1 - 2t)^{-n_2/2} = (1 - 2t)^{-(n_1 + n_2)/2}.$$
+
+Probamos cuatro combinaciones de grados de libertad con 10000 simulaciones cada una.
+
+```{r}
+#| label: ej5-simulacion
+
+set.seed(2026)
+
+N <- 10000
+
+# Combinaciones (n1, n2) de grados de libertad
+combinaciones <- list(c(2, 3), c(4, 6), c(5, 10), c(10, 20))
+
+etiquetas <- sapply(combinaciones, function(p) {
+  paste0("χ²(", p[1], ") + χ²(", p[2], ") ~ χ²(", sum(p), ")")
+})
+
+# Simular las sumas
+df_suma_ji <- do.call(rbind, lapply(seq_along(combinaciones), function(i) {
+  n1 <- combinaciones[[i]][1]
+  n2 <- combinaciones[[i]][2]
+  x1 <- rchisq(N, df = n1)
+  x2 <- rchisq(N, df = n2)
+  data.frame(suma = x1 + x2, gl = n1 + n2, combinacion = etiquetas[i])
+}))
+df_suma_ji$combinacion <- factor(df_suma_ji$combinacion, levels = etiquetas)
+
+# Densidades teóricas χ²(n1 + n2)
+df_curvas_ji <- do.call(rbind, lapply(seq_along(combinaciones), function(i) {
+  gl <- sum(combinaciones[[i]])
+  x <- seq(0, qchisq(0.9995, df = gl), length.out = 400)
+  data.frame(x = x, y = dchisq(x, df = gl), combinacion = etiquetas[i])
+}))
+df_curvas_ji$combinacion <- factor(df_curvas_ji$combinacion, levels = etiquetas)
+```
+
+```{r}
+#| label: ej5-histogramas
+#| fig-height: 6.5
+
+ggplot(df_suma_ji, aes(x = suma)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = "lightblue", color = "black", alpha = 0.7, boundary = 0) +
+  geom_line(data = df_curvas_ji, aes(x = x, y = y),
+            color = "red", linewidth = 1.2) +
+  facet_wrap(~combinacion, scales = "free", ncol = 2) +
+  labs(title = "Aditividad de la distribución ji-cuadrada",
+       subtitle = "Suma de dos variables ji-cuadrada independientes (10000 simulaciones)",
+       x = "X1 + X2",
+       y = "Densidad",
+       caption = "Curva roja: Ji-cuadrada teórica con n1 + n2 grados de libertad") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5)
+  )
+```
+
+**Comparación numérica y gráficos Q-Q**
+
+```{r}
+#| label: ej5-tabla
+#| fig-height: 5
+
+tabla_aditividad <- df_suma_ji %>%
+  group_by(combinacion) %>%
+  summarise(
+    gl = first(gl),
+    media_obs = mean(suma),
+    varianza_obs = var(suma),
+    ks_p = ks.test(suma, "pchisq", df = first(gl))$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    media_teo = gl,
+    varianza_teo = 2 * gl,
+    decision = ifelse(ks_p > 0.05, "No se rechaza χ²(n1 + n2)", "Se rechaza χ²(n1 + n2)")
+  )
+
+kable(tabla_aditividad[, c("combinacion", "media_obs", "media_teo",
+                           "varianza_obs", "varianza_teo", "ks_p", "decision")],
+      caption = "Suma de dos ji-cuadrada independientes vs ji-cuadrada teórica",
+      digits = 4,
+      col.names = c("Combinación", "Media obs.", "Media teórica (n1 + n2)",
+                    "Var. obs.", "Var. teórica (2(n1 + n2))", "Valor p (K-S)", "Decisión")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# Gráficos Q-Q contra la ji-cuadrada teórica
+df_qq <- do.call(rbind, lapply(seq_along(combinaciones), function(i) {
+  gl <- sum(combinaciones[[i]])
+  s <- sort(df_suma_ji$suma[df_suma_ji$combinacion == etiquetas[i]])
+  data.frame(teorico = qchisq(ppoints(length(s)), df = gl),
+             muestral = s,
+             combinacion = etiquetas[i])
+}))
+df_qq$combinacion <- factor(df_qq$combinacion, levels = etiquetas)
+
+ggplot(df_qq, aes(x = teorico, y = muestral)) +
+  geom_point(color = "steelblue", alpha = 0.5, size = 0.8) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linewidth = 1) +
+  facet_wrap(~combinacion, scales = "free", ncol = 2) +
+  labs(title = "Gráficos Q-Q: suma de ji-cuadrada vs ji-cuadrada teórica",
+       x = "Cuantiles teóricos",
+       y = "Cuantiles muestrales") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+<br>
+
+**Conclusión**
+
+En las cuatro combinaciones, los histogramas de $X_1 + X_2$ se ajustan a la densidad $\chi^2(n_1 + n_2)$, las medias y varianzas observadas son cercanas a $n_1 + n_2$ y $2(n_1 + n_2)$, los gráficos Q-Q quedan sobre la recta identidad y la prueba de Kolmogorov-Smirnov no rechaza el ajuste. Esto verifica la propiedad de aditividad: los grados de libertad de la suma son la suma de los grados de libertad de cada sumando (siempre que las variables sean independientes).

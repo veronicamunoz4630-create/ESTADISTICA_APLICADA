@@ -1,0 +1,226 @@
+---
+title: "Distribución F: Solución de Ejercicios Propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(viridis)
+library(RColorBrewer)
+library(kableExtra)
+library(knitr)
+```
+
+## Ejercicios propuestos
+
+::: {#exr-fisher}
+Por medio de simulación numérica (es decir, generando muestras aleatorias de una distribución F con diferentes parámetros, mostrando el histograma de densidad de las muestras y comparándolo con la PDF teórica correspondiente), verifique las siguientes propiedades:
+
+a)  Si $X\sim t(n)$ entonces $X^2 \sim F(1,n)$.
+
+b)  Si $X \sim F(a,b)$ entonces $\frac{1}{X} \sim F(b,a)$.
+
+c)  Si $X \sim \chi^2(a)$ y $Y \sim \chi^2(b)$ son independientes, entonces $\frac{X/a}{Y/b} \sim F(a,b)$.
+:::
+
+**Solución**
+
+Para los tres incisos se sigue el mismo procedimiento: se simula una muestra, se construye la variable transformada, se superpone la PDF teórica de la distribución $F$ correspondiente sobre el histograma de densidad, se comparan los cuantiles y se aplica una prueba de Kolmogorov-Smirnov. Para no repetir código se definen dos funciones auxiliares.
+
+Como la distribución $F$ tiene cola derecha pesada, los histogramas se muestran hasta el cuantil 99% de la muestra para que se aprecie bien la forma.
+
+```{r}
+# Función auxiliar: histograma de densidad con la PDF teórica superpuesta
+graficar_sim <- function(x, f_pdf, titulo, subtitulo, color = "lightblue", ylim = NULL) {
+  x_max <- as.numeric(quantile(x, 0.99))
+  ancho <- x_max / 50
+
+  ggplot(data.frame(x = x), aes(x = x)) +
+    geom_histogram(aes(y = after_stat(density)), binwidth = ancho, boundary = 0,
+                   fill = color, color = "black", alpha = 0.7) +
+    stat_function(fun = f_pdf, color = "red", linewidth = 1.3, n = 500) +
+    coord_cartesian(xlim = c(0, x_max), ylim = ylim) +
+    labs(title = titulo,
+         subtitle = subtitulo,
+         x = "x",
+         y = "Densidad",
+         caption = "Curva roja: PDF teórica | Gráfica truncada al cuantil 99% de la muestra") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      plot.subtitle = element_text(size = 12)
+    )
+}
+
+# Función auxiliar: comparación de cuantiles simulados vs teóricos
+comparar_cuantiles <- function(x, q_fun, probs = c(0.25, 0.5, 0.75, 0.9, 0.95, 0.99)) {
+  data.frame(
+    Probabilidad = probs,
+    Cuantil_Teorico = q_fun(probs),
+    Cuantil_Simulado = as.numeric(quantile(x, probs))
+  )
+}
+```
+
+### a) Si $X\sim t(n)$ entonces $X^2 \sim F(1,n)$
+
+Se toma $n = 8$ y se simulan 10,000 valores de $X \sim t(8)$. Se calcula $X^2$ y se compara con la distribución $F(1, 8)$.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Parámetros
+n_t <- 8
+n_sim <- 10000
+
+# Simulación
+set.seed(2026)
+X_t <- rt(n_sim, df = n_t)
+X_t_cuadrado <- X_t^2
+
+# Histograma con la PDF teórica de F(1, n)
+graficar_sim(X_t_cuadrado,
+             f_pdf = function(x) df(x, 1, n_t),
+             titulo = "Verificación: X ~ t(8) entonces X² ~ F(1, 8)",
+             subtitle = paste(format(n_sim, big.mark = ","), "simulaciones de X², comparadas con la PDF de F(1, 8)"),
+             color = "lightblue", ylim = c(0, 1.5))
+```
+
+```{r}
+# Comparación de cuantiles
+kable(comparar_cuantiles(X_t_cuadrado, function(p) qf(p, 1, n_t)),
+      digits = 4, caption = "Cuantiles: X² simulado vs F(1, 8) teórico",
+      col.names = c("Probabilidad", "Cuantil teórico F(1, 8)", "Cuantil simulado de X²"))
+
+# Media teórica de F(a, b): b/(b-2)
+cat("Media teórica de F(1, 8):", round(n_t / (n_t - 2), 4), "\n")
+cat("Media simulada de X²:", round(mean(X_t_cuadrado), 4), "\n\n")
+
+# Prueba de Kolmogorov-Smirnov
+ks_a <- ks.test(X_t_cuadrado, "pf", df1 = 1, df2 = n_t)
+cat("Prueba de Kolmogorov-Smirnov (X² vs F(1, 8)), p-valor:", round(ks_a$p.value, 4), "\n")
+```
+
+El histograma de $X^2$ sigue la curva de la $F(1, 8)$ (que tiende a infinito en 0 porque $a = 1 \leq 2$), los cuantiles coinciden y la prueba de Kolmogorov-Smirnov no rechaza que $X^2 \sim F(1, 8)$ si el p-valor es grande.
+
+### b) Si $X \sim F(a,b)$ entonces $\frac{1}{X} \sim F(b,a)$
+
+Se toman $a = 5$ y $b = 10$. Se simula $X \sim F(5, 10)$ y se calcula $Y = 1/X$, que debe seguir una $F(10, 5)$.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Parámetros
+a_f <- 5
+b_f <- 10
+
+# Simulación
+set.seed(2027)
+X_f <- rf(n_sim, df1 = a_f, df2 = b_f)
+Y_inv <- 1 / X_f
+
+# Histograma de 1/X con la PDF de F(b, a)
+graficar_sim(Y_inv,
+             f_pdf = function(x) df(x, b_f, a_f),
+             titulo = "Verificación: X ~ F(5, 10) entonces 1/X ~ F(10, 5)",
+             subtitle = paste(format(n_sim, big.mark = ","), "simulaciones de 1/X, comparadas con la PDF de F(10, 5)"),
+             color = "lightgreen")
+```
+
+Como contraste, se compara también la muestra de $1/X$ con la PDF de $F(5, 10)$, que **no** es la distribución correcta:
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+graficar_sim(Y_inv,
+             f_pdf = function(x) df(x, a_f, b_f),
+             titulo = "Contraste: 1/X comparada con la PDF incorrecta F(5, 10)",
+             subtitle = "El ajuste es malo, porque F(a, b) ≠ F(b, a)",
+             color = "lightcoral")
+```
+
+```{r}
+# Comparación de cuantiles
+kable(comparar_cuantiles(Y_inv, function(p) qf(p, b_f, a_f)),
+      digits = 4, caption = "Cuantiles: 1/X simulado vs F(10, 5) teórico",
+      col.names = c("Probabilidad", "Cuantil teórico F(10, 5)", "Cuantil simulado de 1/X"))
+
+# Pruebas de Kolmogorov-Smirnov: distribución correcta e incorrecta
+ks_b_correcta <- ks.test(Y_inv, "pf", df1 = b_f, df2 = a_f)
+ks_b_incorrecta <- ks.test(Y_inv, "pf", df1 = a_f, df2 = b_f)
+
+cat("Kolmogorov-Smirnov de 1/X vs F(10, 5), p-valor:", round(ks_b_correcta$p.value, 4), "\n")
+cat("Kolmogorov-Smirnov de 1/X vs F(5, 10), p-valor:", signif(ks_b_incorrecta$p.value, 3), "\n")
+```
+
+La muestra de $1/X$ se ajusta a $F(10, 5)$ y se rechaza claramente la $F(5, 10)$, lo que verifica la propiedad e ilustra que los parámetros no son intercambiables.
+
+### c) Si $X \sim \chi^2(a)$ y $Y \sim \chi^2(b)$ son independientes, entonces $\frac{X/a}{Y/b} \sim F(a,b)$
+
+Se toman $a = 6$ y $b = 12$. Se simulan $X \sim \chi^2(6)$ y $Y \sim \chi^2(12)$ de forma **independiente** y se calcula $W = \frac{X/6}{Y/12}$.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Parámetros
+a_chi <- 6
+b_chi <- 12
+
+# Simulación de variables ji-cuadrada independientes
+set.seed(2028)
+X_chi <- rchisq(n_sim, df = a_chi)
+Y_chi <- rchisq(n_sim, df = b_chi)
+
+# Cociente
+W <- (X_chi / a_chi) / (Y_chi / b_chi)
+
+# Histograma con la PDF de F(a, b)
+graficar_sim(W,
+             f_pdf = function(x) df(x, a_chi, b_chi),
+             titulo = "Verificación: (X/a)/(Y/b) ~ F(a, b)",
+             subtitle = paste("X ~ χ²(6), Y ~ χ²(12) independientes,", format(n_sim, big.mark = ","), "simulaciones"),
+             color = "plum")
+```
+
+```{r}
+# Comparación de cuantiles
+kable(comparar_cuantiles(W, function(p) qf(p, a_chi, b_chi)),
+      digits = 4, caption = "Cuantiles: cociente simulado vs F(6, 12) teórico",
+      col.names = c("Probabilidad", "Cuantil teórico F(6, 12)", "Cuantil simulado de W"))
+
+# Estadísticos teóricos de F(a, b)
+media_teo_f <- b_chi / (b_chi - 2)
+var_teo_f <- 2 * b_chi^2 * (a_chi + b_chi - 2) / (a_chi * (b_chi - 2)^2 * (b_chi - 4))
+
+cat("Media teórica:", round(media_teo_f, 4), "| Media simulada:", round(mean(W), 4), "\n")
+cat("Varianza teórica:", round(var_teo_f, 4), "| Varianza simulada:", round(var(W), 4), "\n\n")
+
+# Prueba de Kolmogorov-Smirnov
+ks_c <- ks.test(W, "pf", df1 = a_chi, df2 = b_chi)
+cat("Prueba de Kolmogorov-Smirnov (W vs F(6, 12)), p-valor:", round(ks_c$p.value, 4), "\n")
+```
+
+El histograma del cociente $\frac{X/a}{Y/b}$ sigue la PDF de la $F(6, 12)$, los cuantiles coinciden y la media simulada se aproxima a $\frac{b}{b-2} = 1.2$. Esto verifica la propiedad que define a la distribución $F$ como cociente de dos variables ji-cuadrada independientes divididas entre sus grados de libertad.
+
+**Nota:** la varianza muestral de una $F$ converge lentamente porque la cola derecha es pesada (con $b = 12$ los momentos de orden alto son grandes), por lo que es normal que difiera un poco más del valor teórico que la media.
+
+---
+
+<br>

@@ -1,0 +1,332 @@
+---
+title: "Distribución Beta: Solución de Ejercicios Propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(viridis)
+library(RColorBrewer)
+library(kableExtra)
+library(knitr)
+```
+
+## Ejercicios Propuestos
+
+::: {#exr-simulacion_beta}
+### Simulación y Visualización
+
+Genera muestras de diferentes tamaños desde 100 hasta 10000 de una distribución beta(2,5).
+
+1.  Genera una gráfica de convergencia de la media muestral a la media teórica a medida que aumenta el tamaño de la muestra.
+
+2.  De manera análoga, genera una gráfica de convergencia de la varianza muestral a la varianza teórica a medida que aumenta el tamaño de la muestra.
+
+3.  Para el tamaño de muestra más grande, genera un histograma de la muestra junto con la curva de la PDF teórica superpuesta.
+:::
+
+**Solución**
+
+Sea $X \sim \text{beta}(2, 5)$. Los valores teóricos son:
+
+$$E(X) = \frac{a}{a+b} = \frac{2}{7} \approx 0.2857 \qquad \text{Var}(X) = \frac{ab}{(a+b)^2(a+b+1)} = \frac{10}{49 \cdot 8} \approx 0.0255$$
+
+**Generación de muestras de diferentes tamaños**
+
+Se generan muestras independientes de tamaños $n = 100, 200, 300, \ldots, 10000$ y, para cada una, se calculan la media y la varianza muestral.
+
+```{r}
+#| warning: false
+
+# Parámetros
+a_beta <- 2
+b_beta <- 5
+
+# Valores teóricos
+media_teo <- a_beta / (a_beta + b_beta)
+var_teo <- (a_beta * b_beta) / ((a_beta + b_beta)^2 * (a_beta + b_beta + 1))
+
+cat("Distribución: Beta(", a_beta, ",", b_beta, ")\n")
+cat("Media teórica:", round(media_teo, 4), "\n")
+cat("Varianza teórica:", round(var_teo, 5), "\n")
+cat("Desviación estándar teórica:", round(sqrt(var_teo), 4), "\n")
+
+# Tamaños de muestra
+tamaños <- seq(100, 10000, by = 100)
+
+# Generar una muestra independiente para cada tamaño
+set.seed(2026)
+estadisticas <- do.call(rbind, lapply(tamaños, function(n) {
+  muestra <- rbeta(n, a_beta, b_beta)
+  data.frame(n = n, media = mean(muestra), varianza = var(muestra))
+}))
+```
+
+**Tabla de resultados para algunos tamaños de muestra**
+
+```{r}
+n_tabla <- c(100, 500, 1000, 2000, 5000, 10000)
+tabla_conv <- estadisticas[estadisticas$n %in% n_tabla, ]
+
+tabla_conv$media_teorica <- media_teo
+tabla_conv$var_teorica <- var_teo
+tabla_conv$error_media <- abs(tabla_conv$media - media_teo) / media_teo * 100
+tabla_conv$error_var <- abs(tabla_conv$varianza - var_teo) / var_teo * 100
+
+kable(tabla_conv[, c("n", "media", "media_teorica", "error_media",
+                     "varianza", "var_teorica", "error_var")],
+      digits = 5, row.names = FALSE,
+      caption = "Convergencia de la media y la varianza muestrales (Beta(2, 5))",
+      col.names = c("n", "Media Obs.", "Media Teór.", "Error %",
+                    "Var. Obs.", "Var. Teór.", "Error %"))
+```
+
+**1. Convergencia de la media muestral**
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+
+ggplot(estadisticas, aes(x = n, y = media)) +
+  geom_line(color = "#3498DB", linewidth = 0.8) +
+  geom_point(color = "#3498DB", size = 1.5) +
+  geom_hline(yintercept = media_teo, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = 8500, y = media_teo + 0.004,
+           label = paste("Media teórica =", round(media_teo, 4)), color = "red", size = 5) +
+  labs(
+    title = "Convergencia de la Media Muestral",
+    subtitle = "Beta(2, 5): muestras independientes de tamaño 100, 200, ..., 10000",
+    x = "Tamaño de muestra (n)",
+    y = "Media muestral"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 12)
+  )
+```
+
+**2. Convergencia de la varianza muestral**
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+
+ggplot(estadisticas, aes(x = n, y = varianza)) +
+  geom_line(color = "#2ECC71", linewidth = 0.8) +
+  geom_point(color = "#2ECC71", size = 1.5) +
+  geom_hline(yintercept = var_teo, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = 8500, y = var_teo + 0.0012,
+           label = paste("Varianza teórica =", round(var_teo, 4)), color = "red", size = 5) +
+  labs(
+    title = "Convergencia de la Varianza Muestral",
+    subtitle = "Beta(2, 5): muestras independientes de tamaño 100, 200, ..., 10000",
+    x = "Tamaño de muestra (n)",
+    y = "Varianza muestral"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 12)
+  )
+```
+
+En ambas gráficas, las fluctuaciones son grandes con muestras pequeñas y se reducen conforme $n$ aumenta, de modo que los valores muestrales se estabilizan alrededor de los teóricos (Ley de los Grandes Números).
+
+**3. Histograma de la muestra más grande con la PDF teórica**
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Muestra del tamaño más grande
+n_max <- max(tamaños)
+set.seed(2027)
+muestra_max <- rbeta(n_max, a_beta, b_beta)
+
+ggplot(data.frame(x = muestra_max), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  stat_function(fun = dbeta, args = list(shape1 = a_beta, shape2 = b_beta),
+                color = "red", linewidth = 1.5) +
+  geom_vline(xintercept = media_teo, color = "darkgreen", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = mean(muestra_max), color = "blue", linetype = "dotted", linewidth = 1) +
+  labs(
+    title = "Histograma de la Muestra vs PDF Teórica",
+    subtitle = paste(format(n_max, big.mark = ","), "observaciones de Beta(2, 5)"),
+    x = "x",
+    y = "Densidad",
+    caption = "Curva roja: PDF teórica | Verde: media teórica | Azul: media muestral"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 12)
+  )
+
+cat("Media muestral (n = 10,000):", round(mean(muestra_max), 4), "| teórica:", round(media_teo, 4), "\n")
+cat("Varianza muestral (n = 10,000):", round(var(muestra_max), 5), "| teórica:", round(var_teo, 5), "\n")
+cat("Moda teórica (a-1)/(a+b-2):", (a_beta - 1) / (a_beta + b_beta - 2), "\n")
+```
+
+El histograma sigue la curva teórica: la distribución Beta(2, 5) es unimodal con moda en $x = 0.2$ y sesgada hacia la derecha, porque $a < b$ y la media (0.2857) queda a la derecha de la moda.
+
+---
+
+::: {#exr-tcl_beta}
+### Teorema Central del Límite
+
+Para diferentes tamaños de muestra verifica el Teorema Central del Límite (TCL) utilizando la distribución beta(2,5).
+:::
+
+**Solución**
+
+Para $X \sim \text{beta}(2,5)$ se tiene $\mu = \frac{2}{7}$ y $\sigma^2 = \frac{10}{392} \approx 0.0255$. Por el TCL, la media muestral de una muestra de tamaño $n$ cumple aproximadamente:
+
+$$\bar{X}_n \sim N\left(\mu, \frac{\sigma^2}{n}\right)$$
+
+Además, la asimetría de la beta es $\gamma = \dfrac{2(b-a)\sqrt{a+b+1}}{(a+b+2)\sqrt{ab}} \approx 0.596$ y la asimetría de $\bar{X}_n$ es $\gamma/\sqrt{n}$, que tiende a 0 conforme $n$ crece (la normal es simétrica).
+
+**Configuración del experimento**
+
+Se toman $k = 2000$ muestras para cada tamaño $n = 1, 5, 10, 30, 100$. Con $n = 1$ se observa la distribución original.
+
+```{r}
+#| warning: false
+
+# Parámetros del experimento
+tamaños_muestra <- c(1, 5, 10, 30, 100)
+num_muestras <- 2000
+
+sigma_teo <- sqrt(var_teo)
+asim_teo <- 2 * (b_beta - a_beta) * sqrt(a_beta + b_beta + 1) /
+  ((a_beta + b_beta + 2) * sqrt(a_beta * b_beta))
+
+cat("CONFIGURACIÓN DEL EXPERIMENTO\n")
+cat("=============================\n")
+cat("Distribución original: Beta(", a_beta, ",", b_beta, ")\n")
+cat("Tamaños de muestra:", paste(tamaños_muestra, collapse = ", "), "\n")
+cat("Número de muestras por tamaño:", num_muestras, "\n\n")
+cat("E(X) =", round(media_teo, 4), "| Var(X) =", round(var_teo, 5),
+    "| SD(X) =", round(sigma_teo, 4), "| Asimetría =", round(asim_teo, 4), "\n")
+```
+
+**Generación de las medias muestrales**
+
+```{r}
+# Generar medias muestrales para cada tamaño de muestra
+set.seed(123)
+medias_muestrales <- lapply(tamaños_muestra, function(n) {
+  replicate(num_muestras, mean(rbeta(n, a_beta, b_beta)))
+})
+names(medias_muestrales) <- paste("n", tamaños_muestra, sep = "_")
+
+# Data frame para análisis
+data_tcl <- do.call(rbind, lapply(seq_along(medias_muestrales), function(i) {
+  data.frame(
+    media_muestral = medias_muestrales[[i]],
+    n = tamaños_muestra[i],
+    n_label = paste("n =", tamaños_muestra[i])
+  )
+}))
+data_tcl$n_label <- factor(data_tcl$n_label, levels = paste("n =", tamaños_muestra))
+```
+
+**Verificación de media, varianza y asimetría**
+
+```{r}
+asimetria <- function(x) mean(((x - mean(x)) / sd(x))^3)
+
+estadisticas_tcl <- data.frame(
+  n = tamaños_muestra,
+  Media_Obs = sapply(medias_muestrales, mean),
+  Media_Teo = media_teo,
+  Var_Obs = sapply(medias_muestrales, var),
+  Var_Teo = var_teo / tamaños_muestra,
+  Asim_Obs = sapply(medias_muestrales, asimetria),
+  Asim_Teo = asim_teo / sqrt(tamaños_muestra),
+  Shapiro_p = sapply(medias_muestrales, function(x) shapiro.test(x)$p.value)
+)
+
+kable(estadisticas_tcl, digits = 5, row.names = FALSE,
+      caption = "Convergencia de los estadísticos de la media muestral (Beta(2, 5))",
+      col.names = c("n", "Media Obs.", "Media Teór.", "Var. Obs.", "Var. Teór.",
+                    "Asim. Obs.", "Asim. Teór.", "Shapiro p-valor"))
+```
+
+**Visualización de la convergencia**
+
+```{r}
+#| fig-width: 11
+#| fig-height: 7
+#| warning: false
+
+# Curvas normales teóricas N(mu, sigma^2/n) para cada tamaño de muestra
+curvas_normales <- do.call(rbind, lapply(tamaños_muestra, function(n) {
+  sd_n <- sigma_teo / sqrt(n)
+  x <- seq(media_teo - 4 * sd_n, media_teo + 4 * sd_n, length.out = 300)
+  data.frame(x = x, y = dnorm(x, media_teo, sd_n), n_label = paste("n =", n))
+}))
+curvas_normales$n_label <- factor(curvas_normales$n_label, levels = paste("n =", tamaños_muestra))
+
+ggplot(data_tcl, aes(x = media_muestral)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, alpha = 0.6, fill = "#3498DB") +
+  geom_line(data = curvas_normales, aes(x = x, y = y), color = "#E74C3C", linewidth = 1.2) +
+  geom_vline(xintercept = media_teo, color = "black", linetype = "dashed", linewidth = 1) +
+  facet_wrap(~n_label, scales = "free") +
+  labs(
+    title = "Distribución de Medias Muestrales (TCL)",
+    subtitle = "Distribución original: Beta(2, 5). Curva roja: normal teórica N(μ, σ²/n)",
+    x = "Media muestral",
+    y = "Densidad"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 12)
+  )
+```
+
+Con $n = 1$ se ve la forma original (sesgada, acotada en $[0,1]$), que no se parece a la curva normal. Desde $n = 10$ la aproximación ya es buena y con $n = 30$ y $n = 100$ el histograma casi coincide con la normal teórica.
+
+**Gráficos cuantil-cuantil**
+
+```{r}
+#| fig-width: 11
+#| fig-height: 7
+
+ggplot(data_tcl, aes(sample = media_muestral)) +
+  stat_qq(color = "#3498DB", alpha = 0.6, size = 0.8) +
+  stat_qq_line(color = "#E74C3C", linewidth = 1) +
+  facet_wrap(~n_label, scales = "free") +
+  labs(
+    title = "QQ-plots de las Medias Muestrales",
+    subtitle = "Comparación con la distribución normal",
+    x = "Cuantiles teóricos",
+    y = "Cuantiles muestrales"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 12)
+  )
+```
+
+**Conclusión:** la media y la varianza de $\bar{X}_n$ coinciden con $\mu$ y $\sigma^2/n$ para todos los tamaños de muestra. Conforme $n$ crece, la asimetría de las medias disminuye hacia 0, los histogramas se ajustan a la curva normal y los QQ-plots se acercan a la recta (con $n = 1$ la prueba de Shapiro rechaza la normalidad, mientras que para $n$ grande ya no), con lo que se verifica el Teorema Central del Límite.
+
+---
+
+<br>

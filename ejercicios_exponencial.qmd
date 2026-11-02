@@ -1,0 +1,192 @@
+---
+title: "Distribución Exponencial - Ejercicios propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| include: false
+#| label: setup
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+```
+
+## Ejercicio 1: Simulación con distintos tamaños de muestra
+
+> Genera una simulación con tamaños de muestra de 10, 50, 100, 500 y 1000 observaciones de una distribución exponencial con $\lambda = 0.8$. Para cada tamaño de muestra:
+>
+> 1.  Calcula la media, varianza y mediana muestral.
+> 2.  Compara estos estadísticos con los valores teóricos.
+> 3.  Grafica la distribución de las muestras junto con la densidad teórica.
+
+### Valores teóricos
+
+Para $X \sim \text{exp}(\lambda = 0.8)$ se tiene:
+
+$$\mu = \frac{1}{\lambda} = \frac{1}{0.8} = 1.25, \qquad \sigma^2 = \frac{1}{\lambda^2} = \frac{1}{0.64} = 1.5625, \qquad m = \frac{\log(2)}{\lambda} \approx 0.8664$$
+
+```{r}
+#| label: ej1-teoricos
+
+# Parámetro de la distribución
+lambda_ej <- 0.8
+
+# Parámetros teóricos
+media_teorica <- 1 / lambda_ej
+varianza_teorica <- 1 / lambda_ej^2
+mediana_teorica <- log(2) / lambda_ej
+
+cat("=== PARÁMETROS TEÓRICOS: exp(λ =", lambda_ej, ") ===\n")
+cat("Media teórica:", round(media_teorica, 4), "\n")
+cat("Varianza teórica:", round(varianza_teorica, 4), "\n")
+cat("Mediana teórica:", round(mediana_teorica, 4), "\n")
+```
+
+### Simulación y estadísticos muestrales
+
+```{r}
+#| label: ej1-simulacion
+
+set.seed(123)
+
+# Tamaños de muestra
+tamanos <- c(10, 50, 100, 500, 1000)
+
+# Generar una muestra para cada tamaño
+muestras <- lapply(tamanos, function(n) rexp(n, rate = lambda_ej))
+names(muestras) <- tamanos
+
+# Calcular estadísticos muestrales y errores relativos
+resultados <- do.call(rbind, lapply(seq_along(tamanos), function(i) {
+  x <- muestras[[i]]
+  data.frame(
+    n = tamanos[i],
+    media_muestral = mean(x),
+    varianza_muestral = var(x),
+    mediana_muestral = median(x)
+  )
+}))
+
+resultados$media_teorica <- media_teorica
+resultados$varianza_teorica <- varianza_teorica
+resultados$mediana_teorica <- mediana_teorica
+
+resultados$error_media <- abs(resultados$media_muestral - media_teorica) / media_teorica * 100
+resultados$error_varianza <- abs(resultados$varianza_muestral - varianza_teorica) / varianza_teorica * 100
+resultados$error_mediana <- abs(resultados$mediana_muestral - mediana_teorica) / mediana_teorica * 100
+
+kable(resultados[, c("n", "media_muestral", "media_teorica", "error_media",
+                     "varianza_muestral", "varianza_teorica", "error_varianza",
+                     "mediana_muestral", "mediana_teorica", "error_mediana")],
+      caption = "Estadísticos muestrales vs valores teóricos - exp(λ = 0.8)",
+      digits = 4,
+      col.names = c("n", "Observada", "Teórica", "Error %",
+                    "Observada", "Teórica", "Error %",
+                    "Observada", "Teórica", "Error %")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  add_header_above(c(" " = 1, "Media" = 3, "Varianza" = 3, "Mediana" = 3))
+```
+
+<br>
+
+**Interpretación**
+
+Con muestras pequeñas ($n = 10$) los estadísticos muestrales pueden alejarse bastante de los valores teóricos, sobre todo la varianza, porque en la exponencial hay valores grandes poco frecuentes que pesan mucho en el cálculo. Conforme aumenta $n$, los errores relativos tienden a disminuir (aunque no necesariamente de forma monótona, pues cada muestra es independiente de las otras). Esto es consecuencia de la ley de los grandes números.
+
+También se observa que la mediana muestral se mantiene por debajo de la media muestral, como se espera para una distribución con sesgo positivo: la relación teórica es $m/\mu = \log(2) \approx 0.693$.
+
+### Distribución de las muestras vs densidad teórica
+
+```{r}
+#| label: ej1-histogramas
+#| warning: false
+
+# Juntar las muestras en un solo data frame
+df_muestras <- do.call(rbind, lapply(seq_along(tamanos), function(i) {
+  data.frame(x = muestras[[i]], n_factor = paste("n =", tamanos[i]))
+}))
+df_muestras$n_factor <- factor(df_muestras$n_factor, levels = paste("n =", tamanos))
+
+ggplot(df_muestras, aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 fill = "lightblue", color = "black", alpha = 0.7,
+                 boundary = 0, binwidth = 0.25) +
+  stat_function(fun = dexp, args = list(rate = lambda_ej),
+                color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = media_teorica, color = "blue",
+             linetype = "dashed", linewidth = 1) +
+  facet_wrap(~n_factor, scales = "free_y", ncol = 3) +
+  coord_cartesian(xlim = c(0, 8)) +
+  labs(title = "Muestras de una distribución exponencial vs densidad teórica",
+       subtitle = paste("exp(λ =", lambda_ej, ")"),
+       x = "Valores",
+       y = "Densidad",
+       caption = "Curva roja: Densidad teórica | Línea azul: Media teórica") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 13),
+    axis.title.y = element_text(face = "bold", size = 13)
+  )
+```
+
+### Comparación de la función de distribución empírica con la teórica
+
+Otra forma de comparar las muestras con la distribución teórica es mediante la función de distribución empírica (ECDF), junto con la prueba de Kolmogorov-Smirnov.
+
+```{r}
+#| label: ej1-ecdf
+#| warning: false
+
+ggplot(df_muestras, aes(x = x)) +
+  stat_ecdf(aes(color = "Empírica"), linewidth = 1) +
+  stat_function(fun = pexp, args = list(rate = lambda_ej),
+                aes(color = "Teórica"), linewidth = 1, linetype = "dashed") +
+  scale_color_manual(values = c("Empírica" = "blue", "Teórica" = "red"),
+                     name = "Función") +
+  facet_wrap(~n_factor, ncol = 3) +
+  coord_cartesian(xlim = c(0, 8)) +
+  labs(title = "Función de distribución empírica vs teórica",
+       subtitle = paste("exp(λ =", lambda_ej, ")"),
+       x = "x", y = "F(x)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    legend.position = "top"
+  )
+
+# Prueba de Kolmogorov-Smirnov para cada tamaño de muestra
+tabla_ks <- do.call(rbind, lapply(seq_along(tamanos), function(i) {
+  prueba <- ks.test(muestras[[i]], "pexp", rate = lambda_ej)
+  data.frame(
+    n = tamanos[i],
+    estadistico_D = unname(prueba$statistic),
+    valor_p = prueba$p.value,
+    decision = ifelse(prueba$p.value > 0.05, "No se rechaza H0", "Se rechaza H0")
+  )
+}))
+
+kable(tabla_ks,
+      caption = "Prueba de Kolmogorov-Smirnov: H0 la muestra proviene de exp(λ = 0.8)",
+      digits = 4,
+      col.names = c("n", "Estadístico D", "Valor p", "Decisión")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+<br>
+
+**Conclusión**
+
+En todos los tamaños de muestra, la prueba de Kolmogorov-Smirnov no debería rechazar que los datos provienen de una exponencial con $\lambda = 0.8$ (salvo por el error tipo I del 5%, que puede aparecer en alguna muestra). Gráficamente, el histograma se parece cada vez más a la curva teórica $f(x) = 0.8\, e^{-0.8x}$ y la ECDF se pega a la CDF teórica conforme crece $n$.

@@ -1,0 +1,346 @@
+---
+title: "Distribución t de Student: Solución de Ejercicios Propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+#| warning: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+library(scales)
+library(viridis)
+```
+
+## Ejercicios propuestos
+
+::: {#exr-muestras_tstudent}
+
+Genera muestras aleatorias de tamaño 100, 300 y 1000 de una distribución t de Student con 5 grados de libertad. Para cada muestra:
+
+1. Calcula la media y varianza muestral; y compara con los valores teóricos.
+
+2. Para la muestra de mayor tamaño, realiza un histograma, superpone la función de densidad teórica de la variable aleatoria $t(5)$ y la función de densidad de una normal estándar.
+
+:::
+
+**Solución**
+
+Sea $X \sim t(5)$. Como $n = 5 > 2$, la media y la varianza existen y valen:
+
+$$E(X) = 0 \qquad \text{Var}(X) = \frac{n}{n-2} = \frac{5}{3} \approx 1.6667$$
+
+**1. Media y varianza muestrales**
+
+```{r}
+# Parámetros
+gl <- 5
+tamaños <- c(100, 300, 1000)
+
+# Valores teóricos
+media_teo <- 0
+var_teo <- gl / (gl - 2)
+
+# Generar las muestras
+set.seed(2026)
+muestras <- lapply(tamaños, function(n) rt(n, df = gl))
+names(muestras) <- paste("n", tamaños, sep = "_")
+
+# Tabla comparativa
+tabla_t <- data.frame(
+  n = tamaños,
+  Media_Obs = sapply(muestras, mean),
+  Media_Teo = media_teo,
+  Var_Obs = sapply(muestras, var),
+  Var_Teo = var_teo,
+  SD_Obs = sapply(muestras, sd),
+  SD_Teo = sqrt(var_teo)
+)
+tabla_t$Error_Var <- abs(tabla_t$Var_Obs - tabla_t$Var_Teo) / tabla_t$Var_Teo * 100
+
+kable(tabla_t, digits = 4, row.names = FALSE,
+      caption = "Comparación de estadísticos muestrales con los valores teóricos de t(5)",
+      col.names = c("n", "Media Obs.", "Media Teór.", "Var. Obs.", "Var. Teór.",
+                    "SD Obs.", "SD Teór.", "Error Var. %"))
+```
+
+La media muestral se acerca a 0 conforme crece $n$. La varianza muestral se aproxima a $5/3$, aunque con más fluctuación que en el caso normal: como la $t(5)$ tiene colas pesadas (sus momentos de orden 5 o mayor no existen), algunos valores extremos pueden alejar la varianza muestral del valor teórico incluso con muestras grandes.
+
+**2. Histograma de la muestra más grande**
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| warning: false
+
+muestra_max <- muestras[["n_1000"]]
+
+# Etiquetas de las curvas para la leyenda
+ggplot(data.frame(x = muestra_max), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 0.25, boundary = 0,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  stat_function(fun = dt, args = list(df = gl), aes(color = "t(5)"), linewidth = 1.3) +
+  stat_function(fun = dnorm, args = list(mean = 0, sd = 1), aes(color = "N(0,1)"),
+                linewidth = 1.3, linetype = "dashed") +
+  scale_color_manual(values = c("t(5)" = "red", "N(0,1)" = "black")) +
+  coord_cartesian(xlim = c(-6, 6)) +
+  labs(
+    title = "Muestra de t(5) con la PDF teórica y la normal estándar",
+    subtitle = "1000 observaciones de una distribución t de Student con 5 grados de libertad",
+    x = "x",
+    y = "Densidad",
+    color = "Distribución",
+    caption = "Gráfica truncada en el intervalo [-6, 6]"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    legend.position = "bottom"
+  )
+
+cat("Observaciones fuera de [-6, 6]:", sum(abs(muestra_max) > 6), "\n")
+cat("Valor mínimo:", round(min(muestra_max), 3), "| Valor máximo:", round(max(muestra_max), 3), "\n")
+```
+
+El histograma sigue la densidad $t(5)$ (curva roja). Comparada con la normal estándar (línea negra punteada), la $t(5)$ tiene un pico central un poco más bajo y colas más pesadas, lo que se aprecia por la mayor cantidad de observaciones extremas.
+
+**Comparación de probabilidades de cola**
+
+```{r}
+# Probabilidad de observar valores extremos: t(5) vs N(0,1)
+umbrales <- c(2, 3, 4)
+
+tabla_colas <- data.frame(
+  Umbral = umbrales,
+  `P(|X| > c) en t(5)` = 2 * (1 - pt(umbrales, df = gl)),
+  `P(|Z| > c) en N(0,1)` = 2 * (1 - pnorm(umbrales)),
+  `Proporción observada` = sapply(umbrales, function(u) mean(abs(muestra_max) > u)),
+  check.names = FALSE
+)
+
+kable(tabla_colas, digits = 4,
+      caption = "Probabilidades de cola: t(5) vs normal estándar")
+```
+
+---
+
+::: {#exr-relacion_normal_ji}
+
+::: {#prp-rel_normal_ji}
+
+Si $X\sim N(0,1)$ y $Y\sim \chi^2(n)$ son dos variables aleatorias independientes, entonces la variable aleatoria:
+
+$$T=\frac{X}{\sqrt{Y/n}}\sim t(n)$$
+
+
+:::
+
+---
+
+Genera una muestra aleatoria de de tamaño 1000 para $X\sim N(0,1)$ y $Y\sim \chi^2(10)$. Calcula la variable aleatoria $T$ y compara su histograma con la función de densidad teórica de $t(10)$.
+
+:::
+
+**Solución**
+
+Se simulan $X \sim N(0,1)$ y $Y \sim \chi^2(10)$ de forma **independiente**, y se calcula $T = \dfrac{X}{\sqrt{Y/10}}$.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Parámetros
+n_gl <- 10
+n_sim <- 1000
+
+# Simulación de variables independientes
+set.seed(2027)
+X_norm <- rnorm(n_sim, mean = 0, sd = 1)
+Y_chi <- rchisq(n_sim, df = n_gl)
+
+# Variable T
+T_var <- X_norm / sqrt(Y_chi / n_gl)
+
+# Histograma con la PDF teórica de t(10)
+ggplot(data.frame(t = T_var), aes(x = t)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  stat_function(fun = dt, args = list(df = n_gl), color = "red", linewidth = 1.5) +
+  labs(
+    title = "Verificación: X / √(Y/n) ~ t(n)",
+    subtitle = "X ~ N(0,1), Y ~ χ²(10) independientes, 1000 simulaciones",
+    x = "T",
+    y = "Densidad",
+    caption = "Curva roja: PDF teórica de t(10)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12)
+  )
+```
+
+**Comparación de estadísticos y cuantiles**
+
+```{r}
+# Valores teóricos de t(10)
+var_teo_10 <- n_gl / (n_gl - 2)
+
+cat("Media teórica:", 0, "| Media simulada:", round(mean(T_var), 4), "\n")
+cat("Varianza teórica:", round(var_teo_10, 4), "| Varianza simulada:", round(var(T_var), 4), "\n\n")
+
+probs <- c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
+tabla_cuantiles <- data.frame(
+  Probabilidad = probs,
+  `Cuantil t(10)` = qt(probs, df = n_gl),
+  `Cuantil simulado de T` = as.numeric(quantile(T_var, probs)),
+  `Cuantil N(0,1)` = qnorm(probs),
+  check.names = FALSE
+)
+
+kable(tabla_cuantiles, digits = 4,
+      caption = "Cuantiles de T simulada comparados con t(10) y N(0,1)")
+
+# Prueba de Kolmogorov-Smirnov
+ks_T <- ks.test(T_var, "pt", df = n_gl)
+cat("\nPrueba de Kolmogorov-Smirnov (T vs t(10)), p-valor:", round(ks_T$p.value, 4), "\n")
+```
+
+El histograma de $T$ se ajusta a la densidad de la $t(10)$ y los cuantiles simulados se parecen más a los de la $t(10)$ que a los de la normal (por ejemplo, el cuantil 97.5% es cercano a 2.228 y no a 1.96), con lo que se verifica la propiedad.
+
+---
+
+::: {#exr-n_normales}
+
+
+::: {#prp-n_normal}
+
+Sean $X_1,X_2,\ldots,X_n$ variables aleatorias independientes e idénticamente distribuidas como $N(\mu,\sigma^2)$. Entonces la variable aleatoria:
+
+$$T= \frac{\overline{X}-\mu}{S/\sqrt{n}}\sim t(n-1)$$
+
+en donde $\overline{X}=\frac{1}{n}\sum_{i=1}^n X_i$ y $S^2=\frac{1}{n-1}\sum_{i=1}^n (X_i-\overline{X})^2$.
+
+
+:::
+
+---
+
+Genera 1000 muestras aleatorias de tamaño 50 de una distribución normal estándar. Para cada muestra calcula la media muestral y la desviación estándar muestral. Luego calcula la variable aleatoria $T$ y compara su histograma con la función de densidad teórica de $t(49)$.
+
+
+:::
+
+**Solución**
+
+Se toman $\mu = 0$ y $\sigma = 1$ (normal estándar), $k = 1000$ muestras de tamaño $n = 50$, y para cada una se calcula
+
+$$T = \frac{\bar{X} - 0}{S/\sqrt{50}}$$
+
+```{r}
+# Parámetros
+k_muestras <- 1000
+n_muestra <- 50
+mu <- 0
+sigma <- 1
+
+# Para cada muestra, calcular la media y la desviación estándar muestrales
+set.seed(2028)
+resultados <- t(replicate(k_muestras, {
+  muestra <- rnorm(n_muestra, mean = mu, sd = sigma)
+  c(media = mean(muestra), desv = sd(muestra))
+}))
+
+medias <- resultados[, "media"]
+desviaciones <- resultados[, "desv"]
+
+# Variable T
+T_estad <- (medias - mu) / (desviaciones / sqrt(n_muestra))
+
+cat("Se generaron", k_muestras, "muestras de tamaño", n_muestra, "de una N(0, 1)\n")
+cat("Media de las medias muestrales:", round(mean(medias), 4), "\n")
+cat("Media de las desviaciones estándar muestrales:", round(mean(desviaciones), 4), "\n")
+cat("Primeros 6 valores de T:", round(head(T_estad), 4), "\n")
+```
+
+**Histograma de $T$ con la PDF de $t(49)$**
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+gl_T <- n_muestra - 1
+
+ggplot(data.frame(t = T_estad), aes(x = t)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  stat_function(fun = dt, args = list(df = gl_T), aes(color = "t(49)"), linewidth = 1.5) +
+  stat_function(fun = dnorm, args = list(mean = 0, sd = 1), aes(color = "N(0,1)"),
+                linewidth = 1.2, linetype = "dashed") +
+  scale_color_manual(values = c("t(49)" = "red", "N(0,1)" = "black")) +
+  labs(
+    title = "Verificación: (X̄ - μ)/(S/√n) ~ t(n-1)",
+    subtitle = "1000 muestras de tamaño 50 de una N(0, 1)",
+    x = "T",
+    y = "Densidad",
+    color = "Distribución"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    legend.position = "bottom"
+  )
+```
+
+**Comparación de estadísticos y cuantiles**
+
+```{r}
+var_teo_49 <- gl_T / (gl_T - 2)
+
+cat("Media teórica:", 0, "| Media simulada de T:", round(mean(T_estad), 4), "\n")
+cat("Varianza teórica de t(49):", round(var_teo_49, 4), "| Varianza simulada de T:", round(var(T_estad), 4), "\n\n")
+
+probs <- c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
+tabla_cuantiles_49 <- data.frame(
+  Probabilidad = probs,
+  `Cuantil t(49)` = qt(probs, df = gl_T),
+  `Cuantil simulado de T` = as.numeric(quantile(T_estad, probs)),
+  `Cuantil N(0,1)` = qnorm(probs),
+  check.names = FALSE
+)
+
+kable(tabla_cuantiles_49, digits = 4,
+      caption = "Cuantiles de T comparados con t(49) y N(0,1)")
+
+# Prueba de Kolmogorov-Smirnov
+ks_T49 <- ks.test(T_estad, "pt", df = gl_T)
+cat("\nPrueba de Kolmogorov-Smirnov (T vs t(49)), p-valor:", round(ks_T49$p.value, 4), "\n")
+
+# Cobertura del intervalo t frente al intervalo normal (±1.96)
+cob_t <- mean(abs(T_estad) <= qt(0.975, gl_T))
+cob_z <- mean(abs(T_estad) <= qnorm(0.975))
+cat("Proporción de T dentro de ±", round(qt(0.975, gl_T), 4), "(t(49), nominal 95%):", round(cob_t, 4), "\n")
+cat("Proporción de T dentro de ±", round(qnorm(0.975), 4), "(normal, nominal 95%):", round(cob_z, 4), "\n")
+```
+
+El histograma de $T$ se ajusta a la densidad de la $t(49)$. Con 49 grados de libertad la $t$ es muy parecida a la normal estándar, pero sus cuantiles son un poco mayores (por ejemplo, 2.0096 frente a 1.96 en el 97.5%), lo que refleja la incertidumbre adicional de estimar $\sigma$ con $S$. Esto verifica que, cuando se estandariza la media muestral con la desviación estándar muestral, la distribución correcta es la $t(n-1)$.
+
+---
+
+<br>

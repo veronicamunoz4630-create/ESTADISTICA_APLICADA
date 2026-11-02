@@ -1,0 +1,374 @@
+---
+title: "Distribución Gamma - Ejercicios propuestos"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+```
+
+## Ejercicio 1: Simulación y Teorema Central del Límite
+
+> -   Genera 1000 muestras de tamaños $n= 5, 10, 20, 30, 50, 100$ de una distribución $\text{gamma}(\alpha = 2.5, \lambda = 1.8)$.
+> -   Calcula la media muestral para cada muestra y compárala con la media teórica.
+> -   Calcula la varianza de las medias muestrales y compárala con la varianza teórica dividida por $n$.
+> -   Grafica los histogramas de las medias muestrales y superpone la distribución normal teórica según el TCL.
+
+### Parámetros teóricos
+
+Para $X \sim \text{gamma}(\alpha = 2.5, \lambda = 1.8)$:
+
+$$\mu = \frac{\alpha}{\lambda} = \frac{2.5}{1.8} \approx 1.3889, \qquad \sigma^2 = \frac{\alpha}{\lambda^2} = \frac{2.5}{3.24} \approx 0.7716$$
+
+Por el Teorema Central del Límite, para $n$ suficientemente grande:
+
+$$\bar{X} \approx N\left(\mu, \frac{\sigma^2}{n}\right)$$
+
+```{r}
+#| label: ej1-parametros
+
+alpha_tcl <- 2.5
+lambda_tcl <- 1.8
+
+media_poblacional <- alpha_tcl / lambda_tcl
+varianza_poblacional <- alpha_tcl / lambda_tcl^2
+
+cat("=== PARÁMETROS TEÓRICOS: gamma(α =", alpha_tcl, ", λ =", lambda_tcl, ") ===\n")
+cat("Media poblacional (μ):", round(media_poblacional, 4), "\n")
+cat("Varianza poblacional (σ²):", round(varianza_poblacional, 4), "\n")
+cat("Desviación estándar poblacional (σ):", round(sqrt(varianza_poblacional), 4), "\n")
+```
+
+### Generación de las medias muestrales
+
+```{r}
+#| label: ej1-simulacion
+
+set.seed(2025)
+
+tamanos <- c(5, 10, 20, 30, 50, 100)
+num_muestras <- 1000
+
+# Función para generar medias muestrales
+generar_medias_gamma <- function(n, num_sim, alpha, lambda) {
+  replicate(num_sim, mean(rgamma(n, shape = alpha, rate = lambda)))
+}
+
+# Generar las medias para cada tamaño de muestra
+df_tcl <- do.call(rbind, lapply(tamanos, function(n) {
+  data.frame(
+    medias = generar_medias_gamma(n, num_muestras, alpha_tcl, lambda_tcl),
+    n = n
+  )
+}))
+
+df_tcl$n_factor <- factor(paste("n =", df_tcl$n),
+                          levels = paste("n =", tamanos))
+```
+
+### Comparación de la media y la varianza de las medias muestrales
+
+```{r}
+#| label: ej1-tabla
+
+estadisticos_tcl <- df_tcl %>%
+  group_by(n) %>%
+  summarise(
+    media_observada = mean(medias),
+    varianza_observada = var(medias),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    media_teorica = media_poblacional,
+    varianza_teorica = varianza_poblacional / n,
+    error_media = abs(media_observada - media_teorica) / media_teorica * 100,
+    error_varianza = abs(varianza_observada - varianza_teorica) / varianza_teorica * 100
+  )
+
+kable(estadisticos_tcl[, c("n", "media_observada", "media_teorica", "error_media",
+                           "varianza_observada", "varianza_teorica", "error_varianza")],
+      caption = "Media y varianza de las medias muestrales vs valores teóricos (1000 muestras por tamaño)",
+      digits = 4,
+      col.names = c("n", "Observada", "Teórica (μ)", "Error %",
+                    "Observada", "Teórica (σ²/n)", "Error %")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  add_header_above(c(" " = 1, "Media de las medias" = 3, "Varianza de las medias" = 3))
+```
+
+<br>
+
+**Interpretación**
+
+La media de las medias muestrales es muy cercana a $\mu = 1.3889$ para todos los tamaños de muestra, lo que refleja que $\bar{X}$ es un estimador insesgado de $\mu$. La varianza de las medias muestrales disminuye conforme crece $n$ y se parece mucho a $\sigma^2/n$, es decir, $\text{Var}(\bar{X}) = \sigma^2/n$.
+
+```{r}
+#| label: ej1-varianza-grafica
+
+ggplot(estadisticos_tcl, aes(x = n)) +
+  geom_point(aes(y = varianza_observada, color = "Observada"), size = 3) +
+  geom_line(aes(y = varianza_observada, color = "Observada"), linewidth = 1.2) +
+  geom_point(aes(y = varianza_teorica, color = "Teórica"), size = 3) +
+  geom_line(aes(y = varianza_teorica, color = "Teórica"), linewidth = 1.2, linetype = "dashed") +
+  scale_color_manual(values = c("Observada" = "blue", "Teórica" = "red")) +
+  labs(title = "Disminución de la varianza de las medias muestrales",
+       subtitle = "Var(X̄) = σ²/n",
+       x = "Tamaño de muestra (n)",
+       y = "Varianza de las medias muestrales",
+       color = "Tipo") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 13, face = "bold"),
+    legend.text = element_text(size = 13),
+    legend.position = "top",
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 13),
+    axis.title.y = element_text(face = "bold", size = 13)
+  )
+```
+
+### Histogramas de las medias muestrales con la normal teórica
+
+```{r}
+#| label: ej1-histogramas
+#| fig-height: 7
+
+# Curvas normales teóricas N(μ, σ²/n) para cada tamaño de muestra
+df_normal_teorica <- do.call(rbind, lapply(tamanos, function(n) {
+  sd_n <- sqrt(varianza_poblacional / n)
+  x <- seq(media_poblacional - 4 * sd_n, media_poblacional + 4 * sd_n, length.out = 300)
+  data.frame(
+    x = x,
+    y = dnorm(x, mean = media_poblacional, sd = sd_n),
+    n_factor = paste("n =", n)
+  )
+}))
+df_normal_teorica$n_factor <- factor(df_normal_teorica$n_factor,
+                                     levels = levels(df_tcl$n_factor))
+
+ggplot(df_tcl, aes(x = medias)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = media_poblacional,
+             color = "red", linetype = "dashed", linewidth = 1) +
+  geom_line(data = df_normal_teorica, aes(x = x, y = y),
+            color = "red", linewidth = 1, alpha = 0.65) +
+  facet_wrap(~n_factor, scales = "free", ncol = 3) +
+  labs(title = "Teorema central del límite - Distribución gamma",
+       subtitle = paste("Distribución de medias muestrales para gamma(α =", alpha_tcl, ", λ =", lambda_tcl, ")"),
+       x = "Media muestral",
+       y = "Densidad",
+       caption = "Línea roja punteada: Media teórica | Curva roja: Normal teórica N(μ, σ²/n)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+### Normalidad de las medias muestrales: gráficos Q-Q y asimetría
+
+Si el TCL se cumple, los puntos del gráfico Q-Q deben acercarse a la línea recta. Además, la asimetría de la gamma es $\gamma = 2/\sqrt{\alpha}$ y la de la media muestral es $\gamma/\sqrt{n}$, por lo que debe acercarse a 0 (simetría de la normal) conforme aumenta $n$.
+
+```{r}
+#| label: ej1-qq
+#| fig-height: 7
+
+ggplot(df_tcl, aes(sample = medias)) +
+  stat_qq(color = "steelblue", alpha = 0.6, size = 0.8) +
+  stat_qq_line(color = "red", linewidth = 1) +
+  facet_wrap(~n_factor, ncol = 3) +
+  labs(title = "Gráficos Q-Q de las medias muestrales",
+       subtitle = "Comparación con la distribución normal",
+       x = "Cuantiles teóricos",
+       y = "Cuantiles muestrales") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5))
+
+# Función para calcular la asimetría muestral
+asimetria <- function(x) mean((x - mean(x))^3) / sd(x)^3
+
+tabla_normalidad <- df_tcl %>%
+  group_by(n) %>%
+  summarise(
+    asimetria_obs = asimetria(medias),
+    shapiro_p = shapiro.test(medias)$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    asimetria_teorica = (2 / sqrt(alpha_tcl)) / sqrt(n),
+    decision = ifelse(shapiro_p > 0.05, "No se rechaza normalidad", "Se rechaza normalidad")
+  )
+
+kable(tabla_normalidad[, c("n", "asimetria_obs", "asimetria_teorica", "shapiro_p", "decision")],
+      caption = "Asimetría de las medias muestrales y prueba de Shapiro-Wilk",
+      digits = 4,
+      col.names = c("n", "Asimetría observada", "Asimetría teórica (γ/√n)", "Valor p (Shapiro-Wilk)", "Decisión")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+<br>
+
+**Conclusión**
+
+Con $n = 5$ el histograma todavía muestra un ligero sesgo a la derecha heredado de la distribución gamma. A medida que $n$ aumenta, la asimetría baja hacia 0, los histogramas se ajustan cada vez mejor a la curva normal $N(\mu, \sigma^2/n)$ y los gráficos Q-Q se pegan a la línea recta. Esto confirma numéricamente el Teorema Central del Límite para la distribución gamma.
+
+------------------------------------------------------------------------
+
+## Ejercicio 2: Suma de variables exponenciales
+
+> **Proposición** Sean $X_1, \dots, X_n$ variables aleatorias independientes e idénticamente distribuidas con distribución exponencial $\text{exp}(\lambda)$. Entonces, la suma $Y = \sum_{i=1}^{n} X_i$ sigue una distribución gamma $\text{gamma}(n, \lambda)$.
+>
+> -   Simula 1000 sumas de $n=5$ variables aleatorias $\text{exp}(\lambda = 1.5)$.
+> -   Grafica el histograma de las sumas y superpone la densidad teórica de $\text{gamma}(5, 1.5)$.
+> -   Repite el ejercicio para $n=10$ y $n=20$ y observa cómo cambia la forma de la distribución.
+
+### Justificación teórica
+
+La función generadora de momentos de una $\text{exp}(\lambda)$ es $M_X(t) = \dfrac{\lambda}{\lambda - t}$ para $t < \lambda$. Como las variables son independientes:
+
+$$M_Y(t) = \prod_{i=1}^{n} M_{X_i}(t) = \left(\frac{\lambda}{\lambda - t}\right)^n,$$
+
+que es precisamente la función generadora de momentos de una $\text{gamma}(n, \lambda)$. Por lo tanto $Y \sim \text{gamma}(n, \lambda)$, con
+
+$$E(Y) = \frac{n}{\lambda}, \qquad \text{Var}(Y) = \frac{n}{\lambda^2}.$$
+
+### Simulación de las sumas
+
+```{r}
+#| label: ej2-simulacion
+
+set.seed(2025)
+
+lambda_exp <- 1.5
+n_sumandos <- c(5, 10, 20)
+num_sumas <- 1000
+
+# Simular las sumas para cada valor de n
+df_sumas <- do.call(rbind, lapply(n_sumandos, function(n) {
+  sumas <- replicate(num_sumas, sum(rexp(n, rate = lambda_exp)))
+  data.frame(suma = sumas, n = n)
+}))
+
+df_sumas$n_factor <- factor(paste("n =", df_sumas$n),
+                            levels = paste("n =", n_sumandos))
+
+# Tabla de comparación con la media y varianza teóricas
+tabla_sumas <- df_sumas %>%
+  group_by(n) %>%
+  summarise(
+    media_obs = mean(suma),
+    varianza_obs = var(suma),
+    ks_p = ks.test(suma, "pgamma", shape = first(n), rate = lambda_exp)$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    media_teo = n / lambda_exp,
+    varianza_teo = n / lambda_exp^2,
+    asimetria_teo = 2 / sqrt(n),
+    decision = ifelse(ks_p > 0.05, "No se rechaza gamma(n, λ)", "Se rechaza gamma(n, λ)")
+  )
+
+kable(tabla_sumas[, c("n", "media_obs", "media_teo", "varianza_obs", "varianza_teo",
+                      "asimetria_teo", "ks_p", "decision")],
+      caption = "Suma de n variables exp(λ = 1.5) vs gamma(n, 1.5)",
+      digits = 4,
+      col.names = c("n", "Media obs.", "Media teórica (n/λ)",
+                    "Var. obs.", "Var. teórica (n/λ²)",
+                    "Asimetría teórica (2/√n)", "Valor p (K-S)", "Decisión")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+### Histogramas con la densidad gamma teórica
+
+```{r}
+#| label: ej2-histogramas
+#| fig-height: 7
+
+# Densidades teóricas gamma(n, λ) y aproximación normal N(n/λ, n/λ²)
+df_curvas <- do.call(rbind, lapply(n_sumandos, function(n) {
+  x <- seq(0, qgamma(0.9995, shape = n, rate = lambda_exp), length.out = 400)
+  rbind(
+    data.frame(x = x, y = dgamma(x, shape = n, rate = lambda_exp),
+               curva = "Gamma(n, λ)", n_factor = paste("n =", n)),
+    data.frame(x = x, y = dnorm(x, mean = n / lambda_exp, sd = sqrt(n) / lambda_exp),
+               curva = "Normal N(n/λ, n/λ²)", n_factor = paste("n =", n))
+  )
+}))
+df_curvas$n_factor <- factor(df_curvas$n_factor, levels = levels(df_sumas$n_factor))
+
+ggplot(df_sumas, aes(x = suma)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "lightblue", color = "black", alpha = 0.7, boundary = 0) +
+  geom_line(data = df_curvas, aes(x = x, y = y, color = curva, linetype = curva),
+            linewidth = 1.2) +
+  scale_color_manual(values = c("Gamma(n, λ)" = "red", "Normal N(n/λ, n/λ²)" = "darkgreen"),
+                     name = "Densidad teórica") +
+  scale_linetype_manual(values = c("Gamma(n, λ)" = "solid", "Normal N(n/λ, n/λ²)" = "dashed"),
+                        name = "Densidad teórica") +
+  facet_wrap(~n_factor, scales = "free", ncol = 1) +
+  labs(title = "Suma de variables exponenciales vs distribución gamma",
+       subtitle = paste("Suma de n variables exp(λ =", lambda_exp, ") - 1000 simulaciones"),
+       x = "Suma Y",
+       y = "Densidad") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    legend.position = "top",
+    axis.title.x = element_text(face = "bold", size = 13),
+    axis.title.y = element_text(face = "bold", size = 13)
+  )
+```
+
+### Gráficos Q-Q contra la gamma teórica
+
+```{r}
+#| label: ej2-qq
+
+# Q-Q plot contra gamma(n, λ) para cada n
+df_qq <- do.call(rbind, lapply(n_sumandos, function(n) {
+  sumas <- sort(df_sumas$suma[df_sumas$n == n])
+  p <- ppoints(length(sumas))
+  data.frame(
+    teorico = qgamma(p, shape = n, rate = lambda_exp),
+    muestral = sumas,
+    n_factor = paste("n =", n)
+  )
+}))
+df_qq$n_factor <- factor(df_qq$n_factor, levels = levels(df_sumas$n_factor))
+
+ggplot(df_qq, aes(x = teorico, y = muestral)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 1) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linewidth = 1) +
+  facet_wrap(~n_factor, scales = "free", ncol = 3) +
+  labs(title = "Gráficos Q-Q: suma de exponenciales vs gamma(n, λ)",
+       x = "Cuantiles teóricos gamma",
+       y = "Cuantiles muestrales") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+<br>
+
+**Conclusión**
+
+Los histogramas de las sumas coinciden con la densidad $\text{gamma}(n, 1.5)$ para $n = 5, 10, 20$, las medias y varianzas observadas se acercan a $n/\lambda$ y $n/\lambda^2$, y la prueba de Kolmogorov-Smirnov no suele rechazar el ajuste. Respecto a la forma:
+
+-   Para $n = 5$ la distribución todavía es claramente asimétrica a la derecha (asimetría teórica $2/\sqrt{5} \approx 0.894$).
+-   Conforme $n$ aumenta ($n = 10$ y $n = 20$), la asimetría baja ($0.632$ y $0.447$), la curva se vuelve más simétrica y se aproxima a la normal $N(n/\lambda,\, n/\lambda^2)$ (línea verde punteada). Esto es el Teorema Central del Límite aplicado a la suma de variables exponenciales.
+-   La media y la varianza crecen linealmente con $n$, por lo que la distribución se desplaza a la derecha y se ensancha.
